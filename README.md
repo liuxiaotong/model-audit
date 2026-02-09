@@ -49,6 +49,9 @@
 | ✅ **模型身份验证** | 验证 API 背后是不是声称的模型 |
 | 🔗 **模型指纹比对** | 比对两个模型的行为特征相似度 |
 | 📋 **蒸馏审计报告** | 综合分析生成 Markdown / JSON 报告 |
+| 🧠 **REEF 白盒检测** | 基于 CKA 中间层表示相似度的蒸馏检测 |
+| 🔄 **API 智能重试** | 指数退避重试 + 空响应校验 + 速率限制处理 |
+| ⏱️ **缓存 TTL** | 指纹缓存支持过期时间，模型更新后自动刷新 |
 
 ## 安装 / Installation
 
@@ -155,7 +158,7 @@ knowlyr-modelaudit cache list
 knowlyr-modelaudit cache clear
 ```
 
-首次审计时自动缓存模型指纹到本地 `.modelaudit_cache/`，再次审计同一模型时直接复用，避免重复调 API。
+首次审计时自动缓存模型指纹到本地 `.modelaudit_cache/`，再次审计同一模型时直接复用，避免重复调 API。支持 TTL 过期（见 Python SDK 部分）。
 
 ### 在 Python 中接入 / Python SDK
 
@@ -184,6 +187,7 @@ print(f"蒸馏关系: {'是' if result.is_derived else '否'}")
 | 方法 | 类型 | 说明 | 参考 |
 |------|------|------|------|
 | **LLMmap** | 黑盒 | 20 个探测 Prompt，分析响应模式 | USENIX Security 2025 |
+| **REEF** | 白盒 | CKA 逐层隐藏状态相似度比对 | NeurIPS 2024 |
 | **StyleAnalysis** | 风格分析 | 12 个模型家族的风格签名匹配 | — |
 
 ### 支持识别的模型家族
@@ -209,7 +213,6 @@ print(f"蒸馏关系: {'是' if result.is_derived else '否'}")
 
 | 方法 | 类型 | 说明 | 参考 |
 |------|------|------|------|
-| **REEF** | 白盒 | CKA 隐层相似度比对 | ICLR 2025 Oral |
 | **DLI** | 蒸馏检测 | 影子模型 + 行为签名 | ICLR 2026 |
 
 ### 查看可用方法
@@ -346,9 +349,11 @@ knowlyr-modelaudit verify gpt-4o --provider openai
 | `knowlyr-modelaudit audit --teacher <a> --student <b>` | 完整蒸馏审计 |
 | `knowlyr-modelaudit audit ... --teacher-provider anthropic` | 跨 provider 审计 |
 | `knowlyr-modelaudit audit ... --no-cache` | 跳过缓存，强制重新调 API |
+| `knowlyr-modelaudit audit ... -f json` | 输出 JSON 格式报告 |
 | `knowlyr-modelaudit cache list` | 查看缓存的指纹 |
 | `knowlyr-modelaudit cache clear` | 清除所有缓存 |
 | `knowlyr-modelaudit methods` | 列出可用检测方法 |
+| `knowlyr-modelaudit -v <command>` | 显示详细日志 |
 
 ---
 
@@ -356,6 +361,7 @@ knowlyr-modelaudit verify gpt-4o --provider openai
 
 ```python
 from modelaudit import AuditEngine, Fingerprint, ComparisonResult
+from modelaudit.config import AuditConfig
 
 # 创建引擎（默认启用指纹缓存）
 engine = AuditEngine()
@@ -383,6 +389,10 @@ print(audit.confidence)    # 0.798
 from modelaudit.report import generate_report
 report = generate_report(audit, "markdown")
 
+# 缓存 TTL — 1 小时后自动过期
+config = AuditConfig(cache_ttl=3600)
+engine = AuditEngine(config)
+
 # 不使用缓存
 engine_no_cache = AuditEngine(use_cache=False)
 ```
@@ -397,16 +407,18 @@ src/modelaudit/
 ├── models.py         # Pydantic 数据模型
 ├── base.py           # Fingerprinter 抽象基类
 ├── registry.py       # 方法注册表
-├── config.py         # 配置
-├── cache.py          # 指纹缓存
+├── config.py         # 配置 (含 cache_ttl)
+├── cache.py          # 指纹缓存 (TTL 过期)
 ├── methods/
-│   ├── llmmap.py     # LLMmap 黑盒指纹
+│   ├── llmmap.py     # LLMmap 黑盒指纹 (含重试)
+│   ├── reef.py       # REEF 白盒指纹 (CKA)
 │   └── style.py      # 风格分析
 ├── probes/
 │   └── prompts.py    # 探测 Prompt 库
 ├── report.py         # 报告生成 (6 节详细报告)
-├── cli.py            # CLI 命令行 (7 命令)
-└── mcp_server.py     # MCP Server (4 工具)
+├── cli.py            # CLI 命令行 (含 -v 日志)
+├── mcp_server.py     # MCP Server (4 工具)
+└── py.typed          # PEP 561 类型标记
 ```
 
 ---

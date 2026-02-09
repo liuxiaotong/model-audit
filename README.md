@@ -3,7 +3,7 @@
 # ModelAudit
 
 **LLM 蒸馏检测与模型指纹审计 — 文本溯源、身份验证、蒸馏关系判定**
-**LLM distillation detection & model fingerprinting – text provenance, identity verification, distillation auditing**
+**LLM distillation detection & model fingerprinting — detect text source, verify model identity, audit distillation**
 
 [![PyPI](https://img.shields.io/pypi/v/knowlyr-modelaudit?color=blue)](https://pypi.org/project/knowlyr-modelaudit/)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)

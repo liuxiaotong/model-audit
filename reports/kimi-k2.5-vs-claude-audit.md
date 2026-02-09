@@ -177,13 +177,4 @@ Kimi K2.5 在风格检测中被判定为以下模型风格的分布：
 
 ---
 
-## 7. 建议
-
-1. **扩大探测规模**: 增加至 50-100 个 Probe，覆盖更多领域和语言，提高统计显著性。
-2. **多模型对照**: 用相同 Probe 测试 GPT-4o、DeepSeek、Gemini 等模型，作为对照组。
-3. **API 直接比对**: 使用 `knowlyr-modelaudit compare` 命令同时调用两个模型 API，获取更精确的指纹。
-4. **白盒验证**: 如果能获取模型权重，使用 REEF CKA 方法进行隐层相似度比对，可提供更强的证据。
-
----
-
-*由 [knowlyr-modelaudit](https://github.com/liuxiaotong/model-audit) 生成*
+由 [knowlyr-modelaudit](https://github.com/liuxiaotong/model-audit) 生成

@@ -13,7 +13,7 @@ class AuditConfig(BaseModel):
     provider: Literal["openai", "anthropic", "custom"] = "openai"
     api_key: str = ""
     api_base: str = ""
-    num_probes: int = 8
+    num_probes: int = 20
 
     # 白盒配置
     whitebox_method: str = "reef"

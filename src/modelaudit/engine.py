@@ -14,6 +14,7 @@ class AuditEngine:
     1. detect() — 检测文本来源
     2. verify() — 验证模型身份
     3. compare() — 比对两个模型
+    4. audit() — 完整蒸馏审计（含详细报告数据）
     """
 
     def __init__(self, config: AuditConfig | None = None):
@@ -128,40 +129,121 @@ class AuditEngine:
 
         return detect_text_source(texts)
 
-    def audit(self, teacher: str, student: str, **kwargs) -> AuditResult:
-        """完整审计 — 综合指纹比对 + 风格分析.
+    def audit(
+        self,
+        teacher: str,
+        student: str,
+        *,
+        teacher_provider: str | None = None,
+        teacher_api_key: str | None = None,
+        teacher_api_base: str | None = None,
+        student_provider: str | None = None,
+        student_api_key: str | None = None,
+        student_api_base: str | None = None,
+        **kwargs,
+    ) -> AuditResult:
+        """完整审计 — 综合指纹比对 + 风格分析，生成详细报告数据.
+
+        支持双模型分别配置不同 provider/api_key/api_base，
+        适用于跨平台审计（如 Kimi API + Claude API）。
 
         Args:
             teacher: 教师模型（疑似被蒸馏的源模型）
             student: 学生模型（疑似蒸馏产物）
+            teacher_provider: 教师模型 API 提供商
+            teacher_api_key: 教师模型 API Key
+            teacher_api_base: 教师模型 API 地址
+            student_provider: 学生模型 API 提供商
+            student_api_key: 学生模型 API Key
+            student_api_base: 学生模型 API 地址
         """
-        comparisons: list[ComparisonResult] = []
+        # 确定各模型的 provider 配置（专属配置 > 通用配置 > 默认配置）
+        t_provider = teacher_provider or kwargs.get("provider", self.config.provider)
+        t_api_key = teacher_api_key or kwargs.get("api_key", self.config.api_key)
+        t_api_base = teacher_api_base or kwargs.get("api_base", self.config.api_base)
 
-        # 使用 LLMmap 黑盒比对
-        try:
-            result = self.compare(teacher, student, method="llmmap", **kwargs)
-            comparisons.append(result)
-        except Exception:
-            pass  # 方法不可用时跳过
+        s_provider = student_provider or kwargs.get("provider", self.config.provider)
+        s_api_key = student_api_key or kwargs.get("api_key", self.config.api_key)
+        s_api_base = student_api_base or kwargs.get("api_base", self.config.api_base)
 
-        # 综合判定
-        if comparisons:
-            avg_similarity = sum(c.similarity for c in comparisons) / len(comparisons)
-            derived_votes = sum(1 for c in comparisons if c.is_derived)
-            total_votes = len(comparisons)
+        num_probes = kwargs.get("num_probes", self.config.num_probes)
 
-            if derived_votes > total_votes / 2:
-                verdict = "likely_derived"
-            elif avg_similarity < 0.5:
-                verdict = "independent"
-            else:
-                verdict = "inconclusive"
+        # ── 1. 分别提取指纹 ──
+        fp_teacher = self.fingerprint(
+            teacher, method="llmmap",
+            provider=t_provider, api_key=t_api_key, api_base=t_api_base,
+            num_probes=num_probes,
+        )
+        fp_student = self.fingerprint(
+            student, method="llmmap",
+            provider=s_provider, api_key=s_api_key, api_base=s_api_base,
+            num_probes=num_probes,
+        )
 
-            confidence = avg_similarity
+        # ── 2. 指纹比对 ──
+        fingerprinter = get_fingerprinter("llmmap")
+        comparison = fingerprinter.compare(fp_teacher, fp_student)
+        comparisons: list[ComparisonResult] = [comparison]
+
+        # ── 3. 逐条探测的风格分析 ──
+        from modelaudit.methods.style import _compute_style_scores
+        from modelaudit.probes import get_probes
+
+        probes = get_probes(count=num_probes)
+        teacher_responses = fp_teacher.data.get("raw_responses", [])
+        student_responses = fp_student.data.get("raw_responses", [])
+
+        probe_details: list[dict[str, Any]] = []
+        for i, probe in enumerate(probes):
+            t_response = teacher_responses[i] if i < len(teacher_responses) else ""
+            s_response = student_responses[i] if i < len(student_responses) else ""
+
+            t_scores = _compute_style_scores(t_response)
+            s_scores = _compute_style_scores(s_response)
+
+            t_best = max(t_scores, key=lambda k: t_scores[k]) if t_scores else "unknown"
+            s_best = max(s_scores, key=lambda k: s_scores[k]) if s_scores else "unknown"
+
+            probe_details.append({
+                "probe_id": probe.id,
+                "category": probe.category,
+                "teacher_style": t_best,
+                "student_style": s_best,
+                "is_consistent": t_best == s_best,
+            })
+
+        # ── 4. 综合判定 ──
+        avg_similarity = sum(c.similarity for c in comparisons) / len(comparisons)
+        derived_votes = sum(1 for c in comparisons if c.is_derived)
+        total_votes = len(comparisons)
+
+        if derived_votes > total_votes / 2:
+            verdict = "likely_derived"
+        elif avg_similarity < 0.5:
+            verdict = "independent"
         else:
-            avg_similarity = 0.0
             verdict = "inconclusive"
-            confidence = 0.0
+
+        confidence = min(abs(avg_similarity - comparison.threshold) / 0.15, 1.0)
+
+        # ── 5. 打包完整详情（供 report.py 使用） ──
+        details: dict[str, Any] = {
+            "fingerprints": {
+                "teacher": fp_teacher.model_dump(),
+                "student": fp_student.model_dump(),
+            },
+            "probe_details": probe_details,
+            "teacher_info": {
+                "model": teacher,
+                "provider": t_provider,
+                "api_base": t_api_base,
+            },
+            "student_info": {
+                "model": student,
+                "provider": s_provider,
+                "api_base": s_api_base,
+            },
+        }
 
         return AuditResult(
             model_a=teacher,
@@ -170,6 +252,7 @@ class AuditEngine:
             verdict=verdict,
             confidence=round(confidence, 4),
             summary=self._generate_summary(teacher, student, verdict, comparisons),
+            details=details,
         )
 
     def _generate_summary(

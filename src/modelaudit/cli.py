@@ -178,10 +178,16 @@ def compare(
     "-p", "--provider",
     type=str,
     default="openai",
-    help="API 提供商",
+    help="默认 API 提供商 (两个模型相同时使用)",
 )
-@click.option("--api-key", type=str, default="", help="API Key")
-@click.option("--api-base", type=str, default="", help="自定义 API 地址")
+@click.option("--api-key", type=str, default="", help="默认 API Key")
+@click.option("--api-base", type=str, default="", help="默认 API 地址")
+@click.option("--teacher-provider", type=str, default=None, help="教师模型 API 提供商")
+@click.option("--teacher-api-key", type=str, default=None, help="教师模型 API Key")
+@click.option("--teacher-api-base", type=str, default=None, help="教师模型 API 地址")
+@click.option("--student-provider", type=str, default=None, help="学生模型 API 提供商")
+@click.option("--student-api-key", type=str, default=None, help="学生模型 API Key")
+@click.option("--student-api-base", type=str, default=None, help="学生模型 API 地址")
 @click.option("-o", "--output", type=click.Path(), help="审计报告输出路径")
 @click.option(
     "-f", "--format", "output_format",
@@ -195,12 +201,30 @@ def audit(
     provider: str,
     api_key: str,
     api_base: str,
+    teacher_provider: str | None,
+    teacher_api_key: str | None,
+    teacher_api_base: str | None,
+    student_provider: str | None,
+    student_api_key: str | None,
+    student_api_base: str | None,
     output: str | None,
     output_format: str,
 ):
     """完整蒸馏审计 — 综合指纹比对 + 风格分析
 
-    生成详细审计报告。
+    生成详细审计报告。支持双模型分别配置不同 API 提供商。
+
+    \b
+    示例:
+      # 同一 provider
+      knowlyr-modelaudit audit --teacher gpt-4o --student gpt-3.5 -p openai
+
+      # 跨 provider 审计
+      knowlyr-modelaudit audit \\
+        --teacher claude-opus --teacher-provider anthropic \\
+        --student kimi-k2.5 --student-provider openai \\
+        --student-api-base https://api.moonshot.cn/v1 \\
+        -o report.md
     """
     click.echo(f"正在审计: {teacher} → {student}...")
 
@@ -210,12 +234,18 @@ def audit(
     try:
         result = engine.audit(
             teacher, student,
-            provider=provider, api_key=api_key, api_base=api_base,
+            teacher_provider=teacher_provider,
+            teacher_api_key=teacher_api_key,
+            teacher_api_base=teacher_api_base,
+            student_provider=student_provider,
+            student_api_key=student_api_key,
+            student_api_base=student_api_base,
         )
     except Exception as e:
         click.echo(f"错误: {e}", err=True)
         sys.exit(1)
 
+    # 终端输出摘要
     verdict_text = {
         "likely_derived": "⚠️  可能存在蒸馏关系",
         "independent": "✓ 两个模型独立",
@@ -226,12 +256,22 @@ def audit(
     click.echo(f"置信度: {result.confidence:.4f}")
     click.echo(f"\n{result.summary}")
 
-    if output:
-        from modelaudit.report import generate_report
+    # 生成报告
+    from modelaudit.report import generate_report
 
-        report_content = generate_report(result, output_format)
+    report_content = generate_report(result, output_format)
+
+    if output:
         Path(output).write_text(report_content, encoding="utf-8")
         click.echo(f"\n报告已保存: {output}")
+    else:
+        # 无 -o 时自动保存到 reports/ 目录
+        reports_dir = Path("reports")
+        reports_dir.mkdir(exist_ok=True)
+        filename = f"{student}-vs-{teacher}-audit.{'md' if output_format == 'markdown' else 'json'}"
+        report_path = reports_dir / filename
+        report_path.write_text(report_content, encoding="utf-8")
+        click.echo(f"\n报告已自动保存: {report_path}")
 
 
 @main.command()
@@ -264,7 +304,7 @@ def methods():
     click.echo("  - detect:  分析文本来源（基于风格分析）")
     click.echo("  - verify:  验证模型身份")
     click.echo("  - compare: 比对两个模型")
-    click.echo("  - audit:   完整蒸馏审计")
+    click.echo("  - audit:   完整蒸馏审计（生成详细报告）")
 
 
 def _load_texts(data_path: str) -> list[str]:

@@ -79,7 +79,10 @@ def create_server() -> "Server":
             ),
             Tool(
                 name="audit_distillation",
-                description="完整蒸馏审计 — 综合指纹比对 + 风格分析，生成审计报告",
+                description=(
+                    "完整蒸馏审计 — 综合指纹比对 + 风格分析，生成详细审计报告。"
+                    "支持跨 provider 审计（如 Kimi API + Claude API）。"
+                ),
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -91,9 +94,26 @@ def create_server() -> "Server":
                             "type": "string",
                             "description": "学生模型 (疑似蒸馏产物)",
                         },
-                        "provider": {
+                        "teacher_provider": {
                             "type": "string",
-                            "description": "API 提供商 (默认: openai)",
+                            "description": "教师模型 API 提供商 (默认: openai)",
+                        },
+                        "student_provider": {
+                            "type": "string",
+                            "description": "学生模型 API 提供商 (默认: openai)",
+                        },
+                        "teacher_api_base": {
+                            "type": "string",
+                            "description": "教师模型自定义 API 地址",
+                        },
+                        "student_api_base": {
+                            "type": "string",
+                            "description": "学生模型自定义 API 地址",
+                        },
+                        "format": {
+                            "type": "string",
+                            "enum": ["markdown", "json"],
+                            "description": "报告格式 (默认: markdown)",
                         },
                     },
                     "required": ["teacher", "student"],
@@ -183,13 +203,21 @@ def create_server() -> "Server":
         elif name == "audit_distillation":
             teacher = arguments["teacher"]
             student = arguments["student"]
-            provider = arguments.get("provider", "openai")
+            output_format = arguments.get("format", "markdown")
 
-            config = AuditConfig(provider=provider)
+            config = AuditConfig()
             engine = AuditEngine(config)
-            result = engine.audit(teacher, student, provider=provider)
+            result = engine.audit(
+                teacher, student,
+                teacher_provider=arguments.get("teacher_provider"),
+                teacher_api_key=arguments.get("teacher_api_key"),
+                teacher_api_base=arguments.get("teacher_api_base"),
+                student_provider=arguments.get("student_provider"),
+                student_api_key=arguments.get("student_api_key"),
+                student_api_base=arguments.get("student_api_base"),
+            )
 
-            report = generate_report(result, "markdown")
+            report = generate_report(result, output_format)
             return [TextContent(type="text", text=report)]
 
         else:

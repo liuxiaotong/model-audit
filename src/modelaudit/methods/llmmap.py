@@ -97,8 +97,37 @@ def _compute_fingerprint_vector(probe_features: list[dict[str, Any]]) -> dict[st
     return vector
 
 
+# 各特征维度的典型范围，用于归一化到 0-1
+_FEATURE_RANGES: dict[str, tuple[float, float]] = {
+    "avg_length_chars": (50, 3000),
+    "avg_length_words": (10, 500),
+    "avg_length_sentences": (1, 20),
+    "avg_avg_word_length": (3, 8),
+    "avg_avg_sentence_length": (5, 40),
+    "avg_unique_word_ratio": (0, 1),
+    "avg_punctuation_ratio": (0, 0.1),
+    "avg_newline_ratio": (0, 0.05),
+}
+
+
+def _normalize_vector(vector: dict[str, float]) -> dict[str, float]:
+    """将指纹向量归一化到 0-1 范围，消除量纲差异."""
+    normalized = {}
+    for key, value in vector.items():
+        if key in _FEATURE_RANGES:
+            lo, hi = _FEATURE_RANGES[key]
+            normalized[key] = max(0, min(1, (value - lo) / (hi - lo))) if hi > lo else 0
+        else:
+            # ratio_ 和 style_ 特征本身已在 0-1 范围
+            normalized[key] = value
+    return normalized
+
+
 def _cosine_similarity(a: dict[str, float], b: dict[str, float]) -> float:
-    """计算两个稀疏向量的余弦相似度."""
+    """计算两个稀疏向量的余弦相似度（归一化后比对）."""
+    a = _normalize_vector(a)
+    b = _normalize_vector(b)
+
     all_keys = set(a.keys()) | set(b.keys())
     if not all_keys:
         return 0.0

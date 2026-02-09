@@ -84,3 +84,54 @@ class TestCLI:
         runner = CliRunner()
         result = runner.invoke(main, ["detect", "/nonexistent/file.jsonl"])
         assert result.exit_code != 0
+
+    def test_cache_list_empty(self, tmp_path):
+        runner = CliRunner()
+        result = runner.invoke(main, ["cache", "list", "--cache-dir", str(tmp_path / "empty")])
+        assert result.exit_code == 0
+        assert "缓存为空" in result.output
+
+    def test_cache_list_with_entries(self, tmp_path):
+        from modelaudit.cache import FingerprintCache
+        from modelaudit.models import Fingerprint
+
+        cache_dir = tmp_path / "cache"
+        cache = FingerprintCache(str(cache_dir))
+        fp = Fingerprint(
+            model_id="test-model",
+            method="llmmap",
+            fingerprint_type="blackbox",
+            data={"vector": {}},
+        )
+        cache.put("test-model", "llmmap", "openai", fp)
+
+        runner = CliRunner()
+        result = runner.invoke(main, ["cache", "list", "--cache-dir", str(cache_dir)])
+        assert result.exit_code == 0
+        assert "test-model" in result.output
+        assert "1 条指纹" in result.output
+
+    def test_cache_clear(self, tmp_path):
+        from modelaudit.cache import FingerprintCache
+        from modelaudit.models import Fingerprint
+
+        cache_dir = tmp_path / "cache"
+        cache = FingerprintCache(str(cache_dir))
+        fp = Fingerprint(
+            model_id="test-model",
+            method="llmmap",
+            fingerprint_type="blackbox",
+            data={"vector": {}},
+        )
+        cache.put("test-model", "llmmap", "openai", fp)
+
+        runner = CliRunner()
+        result = runner.invoke(main, ["cache", "clear", "--cache-dir", str(cache_dir), "--yes"])
+        assert result.exit_code == 0
+        assert "已清除 1 条缓存" in result.output
+
+    def test_cache_help(self):
+        runner = CliRunner()
+        result = runner.invoke(main, ["cache", "--help"])
+        assert result.exit_code == 0
+        assert "管理指纹缓存" in result.output

@@ -26,17 +26,32 @@ def main():
 @click.option("-o", "--output", type=click.Path(), help="结果输出路径")
 @click.option(
     "-f", "--format", "output_format",
-    type=click.Choice(["json", "table"]),
+    type=click.Choice(["json", "csv", "table"]),
     default="table",
     help="输出格式",
 )
 @click.option("-n", "--limit", type=int, default=0, help="限制检测条数 (0=全部)")
-def detect(data_path: str, output: str | None, output_format: str, limit: int):
+@click.option(
+    "--field", type=str, default=None,
+    help="JSONL/JSON 中的文本字段名 (默认自动尝试 text/content/output)",
+)
+def detect(
+    data_path: str,
+    output: str | None,
+    output_format: str,
+    limit: int,
+    field: str | None,
+):
     """检测文本数据来源 — 判断文本是哪个模型生成的
 
-    DATA_PATH: JSONL 文件，每行一个 JSON 对象，需包含 text 字段
+    DATA_PATH: JSONL/JSON/TXT 文件
+
+    \b
+    示例:
+      knowlyr-modelaudit detect texts.jsonl
+      knowlyr-modelaudit detect data.jsonl --field response -f csv -o result.csv
     """
-    texts = _load_texts(data_path)
+    texts = _load_texts(data_path, field=field)
 
     if not texts:
         click.echo("错误: 文件中没有找到文本数据", err=True)
@@ -52,16 +67,21 @@ def detect(data_path: str, output: str | None, output_format: str, limit: int):
 
     if output_format == "table":
         _print_detection_table(results)
+    elif output_format == "csv":
+        _print_detection_csv(results)
     else:
         result_dicts = [r.model_dump() for r in results]
         output_text = json.dumps(result_dicts, ensure_ascii=False, indent=2)
         click.echo(output_text)
 
     if output:
-        result_dicts = [r.model_dump() for r in results]
-        Path(output).write_text(
-            json.dumps(result_dicts, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
+        if output_format == "csv":
+            _save_detection_csv(results, output)
+        else:
+            result_dicts = [r.model_dump() for r in results]
+            Path(output).write_text(
+                json.dumps(result_dicts, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
         click.echo(f"\n结果已保存: {output}")
 
     # 统计
@@ -347,8 +367,8 @@ def methods():
     click.echo("  - audit:   完整蒸馏审计（生成详细报告）")
 
 
-def _load_texts(data_path: str) -> list[str]:
-    """从文件加载文本数据. 支持 JSONL 和纯文本."""
+def _load_texts(data_path: str, field: str | None = None) -> list[str]:
+    """从文件加载文本数据. 支持 JSONL/JSON/CSV/TXT."""
     path = Path(data_path)
     texts: list[str] = []
 
@@ -359,10 +379,7 @@ def _load_texts(data_path: str) -> list[str]:
                 continue
             try:
                 obj = json.loads(line)
-                # 尝试多种字段名
-                text = obj.get("text") or obj.get("content") or obj.get("output") or ""
-                if isinstance(obj, str):
-                    text = obj
+                text = _extract_text(obj, field)
                 if text:
                     texts.append(text)
             except json.JSONDecodeError:
@@ -374,9 +391,17 @@ def _load_texts(data_path: str) -> list[str]:
                 if isinstance(item, str):
                     texts.append(item)
                 elif isinstance(item, dict):
-                    text = item.get("text") or item.get("content") or item.get("output") or ""
+                    text = _extract_text(item, field)
                     if text:
                         texts.append(text)
+    elif path.suffix == ".csv":
+        import csv
+        with open(path, encoding="utf-8", newline="") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                text = _extract_text(row, field)
+                if text:
+                    texts.append(text)
     else:
         # 纯文本，按段落分割
         content = path.read_text(encoding="utf-8")
@@ -384,6 +409,15 @@ def _load_texts(data_path: str) -> list[str]:
         texts = [p.strip() for p in paragraphs if p.strip()]
 
     return texts
+
+
+def _extract_text(obj: dict | str, field: str | None = None) -> str:
+    """从字典中提取文本字段."""
+    if isinstance(obj, str):
+        return obj
+    if field:
+        return obj.get(field, "")
+    return obj.get("text") or obj.get("content") or obj.get("output") or ""
 
 
 def _print_detection_table(results: list) -> None:
@@ -411,6 +445,25 @@ def _print_detection_table(results: list) -> None:
         click.echo("-" * 60)
         for r in results:
             click.echo(f"{r.text_id:>4} | {r.predicted_model:>10} | {r.confidence:>7.2%} | {r.text_preview}")
+
+
+def _print_detection_csv(results: list) -> None:
+    """打印 CSV 格式检测结果."""
+    click.echo("id,predicted_model,confidence,text_preview")
+    for r in results:
+        # 转义预览中的逗号和引号
+        preview = r.text_preview.replace('"', '""')
+        click.echo(f'{r.text_id},"{r.predicted_model}",{r.confidence:.4f},"{preview}"')
+
+
+def _save_detection_csv(results: list, output_path: str) -> None:
+    """保存 CSV 格式检测结果到文件."""
+    import csv
+    with open(output_path, "w", encoding="utf-8", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["id", "predicted_model", "confidence", "text_preview"])
+        for r in results:
+            writer.writerow([r.text_id, r.predicted_model, f"{r.confidence:.4f}", r.text_preview])
 
 
 if __name__ == "__main__":

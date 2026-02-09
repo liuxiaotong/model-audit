@@ -135,3 +135,60 @@ class TestCLI:
         result = runner.invoke(main, ["cache", "--help"])
         assert result.exit_code == 0
         assert "管理指纹缓存" in result.output
+
+    def test_detect_csv_output(self):
+        runner = CliRunner()
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as f:
+            f.write(json.dumps({"text": "Certainly! I'd be happy to help."}) + "\n")
+            tmp_path = f.name
+
+        try:
+            result = runner.invoke(main, ["detect", tmp_path, "-f", "csv"])
+            assert result.exit_code == 0
+            assert "predicted_model" in result.output
+        finally:
+            Path(tmp_path).unlink()
+
+    def test_detect_csv_file_output(self, tmp_path):
+        runner = CliRunner()
+
+        input_file = tmp_path / "input.jsonl"
+        input_file.write_text(
+            json.dumps({"text": "Sure! I can help with that."}) + "\n",
+            encoding="utf-8",
+        )
+        output_file = tmp_path / "result.csv"
+
+        result = runner.invoke(main, [
+            "detect", str(input_file), "-f", "csv", "-o", str(output_file),
+        ])
+        assert result.exit_code == 0
+        content = output_file.read_text(encoding="utf-8")
+        assert "id,predicted_model" in content
+
+    def test_detect_with_field(self):
+        runner = CliRunner()
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as f:
+            f.write(json.dumps({"response": "Sure! I'd be happy to help."}) + "\n")
+            tmp_path = f.name
+
+        try:
+            result = runner.invoke(main, ["detect", tmp_path, "--field", "response"])
+            assert result.exit_code == 0
+            assert "来源分布" in result.output
+        finally:
+            Path(tmp_path).unlink()
+
+    def test_detect_csv_input(self, tmp_path):
+        input_file = tmp_path / "data.csv"
+        input_file.write_text(
+            "id,text\n1,\"Certainly! I would be happy to assist.\"\n",
+            encoding="utf-8",
+        )
+
+        runner = CliRunner()
+        result = runner.invoke(main, ["detect", str(input_file)])
+        assert result.exit_code == 0
+        assert "来源分布" in result.output

@@ -416,5 +416,5 @@ src/modelaudit/
 [MIT](LICENSE)
 
 <div align="center">
-<sub>为数据团队提供模型质量保障与蒸馏审计能力</sub>
+<sub><a href="https://github.com/liuxiaotong">knowlyr</a> 数据工程生态 · 模型蒸馏检测与指纹审计</sub>
 </div>

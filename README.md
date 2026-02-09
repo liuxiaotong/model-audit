@@ -9,7 +9,7 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![CI](https://github.com/liuxiaotong/model-audit/actions/workflows/ci.yml/badge.svg)](https://github.com/liuxiaotong/model-audit/actions/workflows/ci.yml)
-[![MCP](https://img.shields.io/badge/MCP-4_Tools-purple.svg)](#mcp-server)
+[![MCP](https://img.shields.io/badge/MCP-5_Tools-purple.svg)](#mcp-server)
 
 [快速开始](#快速开始) · [检测方法](#检测方法) · [MCP Server](#mcp-server) · [Data Pipeline 生态](#data-pipeline-生态)
 
@@ -50,8 +50,11 @@
 | 🔗 **模型指纹比对** | 比对两个模型的行为特征相似度 |
 | 📋 **蒸馏审计报告** | 综合分析生成 Markdown / JSON 报告 |
 | 🧠 **REEF 白盒检测** | 基于 CKA 中间层表示相似度的蒸馏检测 |
+| 🧬 **DLI 蒸馏血缘** | 基于行为签名 + JS 散度的蒸馏血缘推断 |
+| 📊 **Benchmark 评估** | 内置 14 条样本 (6 家族) 的检测准确率评估 |
 | 🔄 **API 智能重试** | 指数退避重试 + 空响应校验 + 速率限制处理 |
 | ⏱️ **缓存 TTL** | 指纹缓存支持过期时间，模型更新后自动刷新 |
+| 🚀 **自动发布** | git tag 推送自动触发 PyPI 发布 |
 
 ## 安装 / Installation
 
@@ -148,6 +151,40 @@ knowlyr-modelaudit audit --teacher gpt-4o --student my-model --no-cache
 
 </details>
 
+### Benchmark 评估
+
+```bash
+# 运行内置 benchmark，评估检测准确率
+knowlyr-modelaudit benchmark
+
+# 按模型家族过滤
+knowlyr-modelaudit benchmark --label claude
+
+# 按文本类别过滤
+knowlyr-modelaudit benchmark --category code
+```
+
+<details>
+<summary>输出示例</summary>
+
+```
+运行 benchmark: 14 条样本...
+
+==================================================
+总体准确率: 64.3% (9/14)
+==================================================
+
+按模型家族:
+  claude       100.0%
+  deepseek     50.0%
+  gemini       50.0%
+  gpt-4        66.7%
+  llama        50.0%
+  qwen         50.0%
+```
+
+</details>
+
 ### 指纹缓存
 
 ```bash
@@ -187,6 +224,7 @@ print(f"蒸馏关系: {'是' if result.is_derived else '否'}")
 | 方法 | 类型 | 说明 | 参考 |
 |------|------|------|------|
 | **LLMmap** | 黑盒 | 20 个探测 Prompt，分析响应模式 | USENIX Security 2025 |
+| **DLI** | 黑盒 | 行为签名 + JS 散度蒸馏血缘推断 | ICLR 2026 |
 | **REEF** | 白盒 | CKA 逐层隐藏状态相似度比对 | NeurIPS 2024 |
 | **StyleAnalysis** | 风格分析 | 12 个模型家族的风格签名匹配 | — |
 
@@ -208,12 +246,6 @@ print(f"蒸馏关系: {'是' if result.is_derived else '否'}")
 | 角色扮演 | 角色一致性、创意表达 |
 | 代码生成 | 编码风格、注释习惯 |
 | 摘要能力 | 信息压缩、表达密度 |
-
-### 规划中
-
-| 方法 | 类型 | 说明 | 参考 |
-|------|------|------|------|
-| **DLI** | 蒸馏检测 | 影子模型 + 行为签名 | ICLR 2026 |
 
 ### 查看可用方法
 
@@ -248,7 +280,8 @@ knowlyr-modelaudit methods
 |------|------|
 | `detect_text_source` | 检测文本数据来源 |
 | `verify_model` | 验证模型身份 |
-| `compare_models` | 比对两个模型指纹 |
+| `compare_models` | 黑盒比对 (支持 llmmap/dli/style 方法) |
+| `compare_models_whitebox` | 白盒比对 (REEF CKA，需要模型权重) |
 | `audit_distillation` | 完整蒸馏审计 |
 
 ### 使用示例
@@ -352,6 +385,8 @@ knowlyr-modelaudit verify gpt-4o --provider openai
 | `knowlyr-modelaudit audit ... -f json` | 输出 JSON 格式报告 |
 | `knowlyr-modelaudit cache list` | 查看缓存的指纹 |
 | `knowlyr-modelaudit cache clear` | 清除所有缓存 |
+| `knowlyr-modelaudit benchmark` | 运行内置 benchmark 评估检测准确率 |
+| `knowlyr-modelaudit benchmark --label claude` | 按模型家族过滤 benchmark |
 | `knowlyr-modelaudit methods` | 列出可用检测方法 |
 | `knowlyr-modelaudit -v <command>` | 显示详细日志 |
 
@@ -374,6 +409,10 @@ for r in results:
 # 指纹比对 (需要 API key)
 result = engine.compare("gpt-4o", "my-model", method="llmmap")
 print(f"相似度: {result.similarity:.4f}")
+
+# DLI 蒸馏血缘推断
+result = engine.compare("gpt-4o", "my-model", method="dli")
+print(f"蒸馏关系: {'是' if result.is_derived else '否'}")
 
 # 完整审计（支持跨 provider）
 audit = engine.audit(
@@ -409,15 +448,17 @@ src/modelaudit/
 ├── registry.py       # 方法注册表
 ├── config.py         # 配置 (含 cache_ttl)
 ├── cache.py          # 指纹缓存 (TTL 过期)
+├── benchmark.py      # 内置 benchmark 数据集 + 评估
 ├── methods/
 │   ├── llmmap.py     # LLMmap 黑盒指纹 (含重试)
+│   ├── dli.py        # DLI 蒸馏血缘推断 (JS 散度)
 │   ├── reef.py       # REEF 白盒指纹 (CKA)
 │   └── style.py      # 风格分析
 ├── probes/
 │   └── prompts.py    # 探测 Prompt 库
 ├── report.py         # 报告生成 (6 节详细报告)
 ├── cli.py            # CLI 命令行 (含 -v 日志)
-├── mcp_server.py     # MCP Server (4 工具)
+├── mcp_server.py     # MCP Server (5 工具)
 └── py.typed          # PEP 561 类型标记
 ```
 

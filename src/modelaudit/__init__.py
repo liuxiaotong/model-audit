@@ -4,7 +4,7 @@
 统一接口审计模型来源与血缘关系。
 """
 
-__version__ = "0.2.0"
+__version__ = "0.2.1"
 
 from modelaudit.base import Fingerprinter
 from modelaudit.models import (

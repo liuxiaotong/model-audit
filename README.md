@@ -1,13 +1,15 @@
 <div align="center">
 
-# ModelAudit
+<h1>🔍 ModelAudit</h1>
 
-**LLM 蒸馏检测与模型指纹审计 — 文本溯源、身份验证、蒸馏关系判定**
-**LLM distillation detection & model fingerprinting — detect text source, verify model identity, audit distillation**
+<p><strong>LLM 蒸馏检测与模型指纹审计 — 文本溯源、身份验证、蒸馏关系判定</strong><br/>
+<em>LLM distillation detection & model fingerprinting — detect text source, verify model identity, audit distillation</em></p>
 
 [![PyPI](https://img.shields.io/pypi/v/knowlyr-modelaudit?color=blue)](https://pypi.org/project/knowlyr-modelaudit/)
+[![Downloads](https://img.shields.io/pypi/dm/knowlyr-modelaudit?color=green)](https://pypi.org/project/knowlyr-modelaudit/)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+<br/>
 [![CI](https://github.com/liuxiaotong/model-audit/actions/workflows/ci.yml/badge.svg)](https://github.com/liuxiaotong/model-audit/actions/workflows/ci.yml)
 [![MCP](https://img.shields.io/badge/MCP-5_Tools-purple.svg)](#mcp-server)
 
@@ -17,17 +19,19 @@
 
 ---
 
-**GitHub Topics**: `model-fingerprint`, `llm-distillation`, `model-audit`, `cli`, `mcp`, `ai-data-pipeline`
+> 🔍 **文本溯源** 判断一批文本是哪个 LLM 生成的，支持 12 个模型家族
+> ✅ **身份验证** 验证 API 背后是不是声称的模型
+> 🧬 **蒸馏审计** 4 种检测方法（LLMmap / DLI / REEF / StyleAnalysis）
+> 📊 **Benchmark** 内置 14 条样本 × 6 家族，100% 检测准确率
+> ⚡ **并发探测** ThreadPoolExecutor 并发 + 指纹缓存 TTL + 智能重试
 
-检测文本数据来源、验证 API 模型身份、审计模型蒸馏关系。黑盒优先，标注员友好。
-
-## 核心能力 / Core Capabilities
+## 核心能力
 
 ```
 文本/模型 → 探测 Prompt → 响应特征提取 → 指纹比对 → 审计报告
 ```
 
-### 审计仪表盘预览 / Sample Dashboard
+### 审计仪表盘预览
 
 ```
 ┌───────────────────────────────────────────────┐
@@ -41,7 +45,7 @@
 └───────────────────────────────────────────────┘
 ```
 
-### 功能矩阵 / Features
+### 功能矩阵
 
 | 功能 | 说明 |
 |------|------|
@@ -58,13 +62,14 @@
 | 🛡️ **输入校验** | 空模型名/短文本检测 + CSV 缺列提示 |
 | 🚀 **自动发布** | git tag 推送自动触发 PyPI 发布 |
 
-## 安装 / Installation
+## 安装
 
 ```bash
 pip install knowlyr-modelaudit
 ```
 
-可选依赖：
+<details>
+<summary>📦 可选依赖</summary>
 
 ```bash
 pip install knowlyr-modelaudit[blackbox]   # 黑盒指纹 (openai, anthropic, httpx)
@@ -73,9 +78,11 @@ pip install knowlyr-modelaudit[mcp]        # MCP 服务器
 pip install knowlyr-modelaudit[all]        # 全部功能
 ```
 
-## 快速开始 / Quick Start
+</details>
 
-### 检测文本来源 / CLI
+## 快速开始
+
+### 检测文本来源
 
 ```bash
 # 检测文本数据是哪个模型生成的
@@ -199,7 +206,7 @@ knowlyr-modelaudit cache clear
 
 首次审计时自动缓存模型指纹到本地 `.modelaudit_cache/`，再次审计同一模型时直接复用，避免重复调 API。支持 TTL 过期（见 Python SDK 部分）。
 
-### 在 Python 中接入 / Python SDK
+### 在 Python 中接入
 
 ```python
 from modelaudit import AuditEngine
@@ -219,7 +226,7 @@ print(f"蒸馏关系: {'是' if result.is_derived else '否'}")
 
 ---
 
-## 检测方法 / Detection Methods
+## 检测方法
 
 ### 已实现
 
@@ -234,7 +241,8 @@ print(f"蒸馏关系: {'是' if result.is_derived else '否'}")
 
 `gpt-4` · `gpt-3.5` · `claude` · `llama` · `gemini` · `qwen` · `deepseek` · `mistral` · `yi` · `phi` · `cohere` · `chatglm`
 
-### 探测维度（20 个 Probe）
+<details>
+<summary>🔬 探测维度（20 个 Probe）</summary>
 
 | 维度 | 探测内容 |
 |------|----------|
@@ -249,6 +257,8 @@ print(f"蒸馏关系: {'是' if result.is_derived else '否'}")
 | 代码生成 | 编码风格、注释习惯 |
 | 摘要能力 | 信息压缩、表达密度 |
 
+</details>
+
 ### 查看可用方法
 
 ```bash
@@ -261,7 +271,8 @@ knowlyr-modelaudit methods
 
 在 Claude Desktop / Claude Code 中直接使用。
 
-### 配置
+<details>
+<summary>⚙️ 配置</summary>
 
 添加到 `~/Library/Application Support/Claude/claude_desktop_config.json`：
 
@@ -275,6 +286,8 @@ knowlyr-modelaudit methods
   }
 }
 ```
+
+</details>
 
 ### 可用工具
 
@@ -309,18 +322,6 @@ Claude: [调用 detect_text_source]
 
 ModelAudit 是 knowlyr 数据工程生态的模型质检组件：
 
-```mermaid
-graph LR
-    Radar["🔍 Radar<br/>情报发现"] --> Recipe["📋 Recipe<br/>逆向分析"]
-    Recipe --> Synth["🔄 Synth<br/>数据合成"]
-    Recipe --> Label["🏷️ Label<br/>数据标注"]
-    Synth --> Check["✅ Check<br/>数据质检"]
-    Label --> Check
-    Check --> Audit["🔬 Audit<br/>模型审计"]
-    Audit --> Agent["🤖 knowlyr-agent<br/>Sandbox · Recorder · Reward · Hub"]
-    style Audit fill:#0969da,color:#fff,stroke:#0969da
-```
-
 ### 生态项目
 
 | 层 | 项目 | PyPI 包 | 说明 | 仓库 |
@@ -332,6 +333,26 @@ graph LR
 | 质检 | **DataCheck** | knowlyr-datacheck | 规则验证、重复检测、分布分析 | [GitHub](https://github.com/liuxiaotong/data-check) |
 | 质检 | **ModelAudit** | knowlyr-modelaudit | 蒸馏检测、模型指纹、身份验证 | You are here |
 | Agent | **knowlyr-agent** | knowlyr-sandbox / recorder / reward / hub | 沙箱 + 轨迹录制 + Reward + 编排 | [GitHub](https://github.com/liuxiaotong/knowlyr-agent) |
+
+<details>
+<summary>🗺️ 生态架构图</summary>
+
+```mermaid
+graph LR
+    Radar["🔍 Radar<br/>情报发现"] --> Recipe["📋 Recipe<br/>逆向分析"]
+    Recipe --> Synth["🔄 Synth<br/>数据合成"]
+    Recipe --> Label["🏷️ Label<br/>数据标注"]
+    Synth --> Check["✅ Check<br/>数据质检"]
+    Label --> Check
+    Check --> Audit["🔬 Audit<br/>模型审计"]
+    Audit --> Hub["🎯 Hub<br/>编排层"]
+    Hub --> Sandbox["📦 Sandbox<br/>执行沙箱"]
+    Sandbox --> Recorder["📹 Recorder<br/>轨迹录制"]
+    Recorder --> Reward["⭐ Reward<br/>过程打分"]
+    style Audit fill:#0969da,color:#fff,stroke:#0969da
+```
+
+</details>
 
 ### 端到端工作流
 
@@ -350,7 +371,8 @@ knowlyr-modelaudit detect ./output/synthetic.jsonl
 knowlyr-modelaudit verify gpt-4o --provider openai
 ```
 
-### 组合 MCP 配置
+<details>
+<summary>🔌 组合 MCP 配置</summary>
 
 ```json
 {
@@ -371,9 +393,12 @@ knowlyr-modelaudit verify gpt-4o --provider openai
 }
 ```
 
+</details>
+
 ---
 
-## 命令参考
+<details>
+<summary>📖 命令参考</summary>
 
 | 命令 | 功能 |
 |------|------|
@@ -392,9 +417,12 @@ knowlyr-modelaudit verify gpt-4o --provider openai
 | `knowlyr-modelaudit methods` | 列出可用检测方法 |
 | `knowlyr-modelaudit -v <command>` | 显示详细日志 |
 
+</details>
+
 ---
 
-## API 使用
+<details>
+<summary>🐍 Python API</summary>
 
 ```python
 from modelaudit import AuditEngine, Fingerprint, ComparisonResult
@@ -442,9 +470,12 @@ engine = AuditEngine(config)
 engine_no_cache = AuditEngine(use_cache=False)
 ```
 
+</details>
+
 ---
 
-## 项目架构
+<details>
+<summary>🏗️ 项目架构</summary>
 
 ```
 src/modelaudit/
@@ -467,6 +498,26 @@ src/modelaudit/
 ├── mcp_server.py     # MCP Server (5 工具)
 └── py.typed          # PEP 561 类型标记
 ```
+
+</details>
+
+---
+
+## 开发
+
+```bash
+# 安装开发依赖
+pip install -e ".[all,dev]"
+
+# 运行测试
+pytest
+
+# 代码格式化 + lint
+ruff check src/
+ruff format src/
+```
+
+**CI**: GitHub Actions，支持 Python 3.10+。Tag push 自动发布 PyPI + GitHub Release。
 
 ---
 

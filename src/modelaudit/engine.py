@@ -221,6 +221,36 @@ class AuditEngine:
         comparison = fingerprinter.compare(fp_teacher, fp_student)
         comparisons: list[ComparisonResult] = [comparison]
 
+        # ── 2b. DLI 行为签名比对 (复用 LLMmap 已收集的响应) ──
+        try:
+            from modelaudit.methods.dli import (
+                _compute_behavior_similarity,
+                _extract_behavior_signature,
+            )
+
+            teacher_responses = fp_teacher.data.get("raw_responses", [])
+            student_responses = fp_student.data.get("raw_responses", [])
+
+            if teacher_responses and student_responses:
+                sig_teacher = _extract_behavior_signature(teacher_responses)
+                sig_student = _extract_behavior_signature(student_responses)
+                dli_similarity = _compute_behavior_similarity(sig_teacher, sig_student)
+                dli_threshold = 0.80
+
+                dli_comparison = ComparisonResult(
+                    model_a=teacher,
+                    model_b=student,
+                    method="dli",
+                    similarity=round(dli_similarity, 6),
+                    is_derived=dli_similarity >= dli_threshold,
+                    threshold=dli_threshold,
+                    confidence=min(abs(dli_similarity - dli_threshold) / 0.2, 1.0),
+                    details={"reused_from": "llmmap_responses"},
+                )
+                comparisons.append(dli_comparison)
+        except Exception:
+            logger.debug("DLI 比对跳过 (非关键错误)")
+
         # ── 3. 逐条探测的风格分析 ──
         from modelaudit.methods.style import _compute_style_scores
         from modelaudit.probes import get_probes
@@ -234,8 +264,8 @@ class AuditEngine:
             t_response = teacher_responses[i] if i < len(teacher_responses) else ""
             s_response = student_responses[i] if i < len(student_responses) else ""
 
-            t_scores = _compute_style_scores(t_response)
-            s_scores = _compute_style_scores(s_response)
+            t_scores = _compute_style_scores(t_response) if t_response else {}
+            s_scores = _compute_style_scores(s_response) if s_response else {}
 
             t_best = max(t_scores, key=lambda k: t_scores[k]) if t_scores else "unknown"
             s_best = max(s_scores, key=lambda k: s_scores[k]) if s_scores else "unknown"

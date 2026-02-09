@@ -14,7 +14,7 @@ class TestCLI:
         runner = CliRunner()
         result = runner.invoke(main, ["--version"])
         assert result.exit_code == 0
-        assert "0.3" in result.output
+        assert "0.4" in result.output
 
     def test_help(self):
         runner = CliRunner()
@@ -204,3 +204,39 @@ class TestCLI:
         assert result.exit_code == 0
         assert "reef" in result.output
         assert "白盒" in result.output
+
+
+class TestCSVValidation:
+    def test_csv_missing_text_column(self, tmp_path):
+        """CSV 缺少 text 列时应报错并显示可用列名."""
+        csv_file = tmp_path / "no_text.csv"
+        csv_file.write_text("name,age\nAlice,30\nBob,25\n", encoding="utf-8")
+
+        runner = CliRunner()
+        result = runner.invoke(main, ["detect", str(csv_file)])
+        assert result.exit_code != 0
+        assert "可用列" in result.output or "可用列" in (result.stderr or "")
+
+    def test_csv_with_field_flag(self, tmp_path):
+        """CSV 用 --field 指定列名应正常工作."""
+        csv_file = tmp_path / "custom.csv"
+        csv_file.write_text(
+            "id,response\n1,Hello world test text\n2,Another test text here\n",
+            encoding="utf-8",
+        )
+
+        runner = CliRunner()
+        result = runner.invoke(main, ["detect", str(csv_file), "--field", "response"])
+        assert result.exit_code == 0
+
+    def test_csv_with_text_column(self, tmp_path):
+        """CSV 有 text 列时应正常工作."""
+        csv_file = tmp_path / "good.csv"
+        csv_file.write_text(
+            "id,text\n1,Hello world test text\n2,Another test text here\n",
+            encoding="utf-8",
+        )
+
+        runner = CliRunner()
+        result = runner.invoke(main, ["detect", str(csv_file)])
+        assert result.exit_code == 0

@@ -486,10 +486,19 @@ def _load_texts(data_path: str, field: str | None = None) -> list[str]:
         import csv
         with open(path, encoding="utf-8", newline="") as f:
             reader = csv.DictReader(f)
-            for row in reader:
+            rows = list(reader)
+            for row in rows:
                 text = _extract_text(row, field)
                 if text:
                     texts.append(text)
+            # 如果没有找到文本且未指定 field，提示可用列名
+            if not texts and not field and rows:
+                available = ", ".join(rows[0].keys())
+                raise click.UsageError(
+                    f"CSV 中未找到 text/content/output 列。"
+                    f"可用列: {available}\n"
+                    f"请用 --field 指定文本列名"
+                )
     else:
         # 纯文本，按段落分割
         content = path.read_text(encoding="utf-8")

@@ -99,6 +99,90 @@ MODEL_STYLE_SIGNATURES: dict[str, dict[str, Any]] = {
             "verbose": False,
         },
     },
+    "deepseek": {
+        "markers": [
+            "let me", "here's", "to clarify", "step by step",
+            "let's break this down", "the key point is",
+        ],
+        "refusal_patterns": [
+            "as an ai assistant", "i cannot provide", "i'm not able to",
+        ],
+        "structural": {
+            "tends_markdown": True,
+            "tends_numbered_lists": True,
+            "verbose": True,
+        },
+    },
+    "mistral": {
+        "markers": [
+            "here is", "let me", "to answer your question",
+            "in short", "the answer is",
+        ],
+        "refusal_patterns": [
+            "i cannot", "i must decline", "it would be inappropriate",
+        ],
+        "structural": {
+            "tends_markdown": False,
+            "tends_numbered_lists": False,
+            "verbose": False,
+        },
+    },
+    "yi": {
+        "markers": [
+            "sure", "here's", "let me explain", "to put it simply",
+            "in a nutshell", "i'd like to point out",
+        ],
+        "refusal_patterns": [
+            "as an ai", "i'm not able to", "i cannot assist with",
+        ],
+        "structural": {
+            "tends_markdown": True,
+            "tends_numbered_lists": True,
+            "verbose": True,
+        },
+    },
+    "phi": {
+        "markers": [
+            "here's", "the answer is", "let me",
+            "to summarize", "in conclusion",
+        ],
+        "refusal_patterns": [
+            "i cannot", "i'm unable to", "as a language model",
+        ],
+        "structural": {
+            "tends_markdown": False,
+            "tends_numbered_lists": False,
+            "verbose": False,
+        },
+    },
+    "cohere": {
+        "markers": [
+            "sure!", "happy to help", "here's what i found",
+            "to elaborate", "it's important to note",
+        ],
+        "refusal_patterns": [
+            "i'm not able to", "i'd prefer not to", "i cannot help with",
+        ],
+        "structural": {
+            "tends_markdown": True,
+            "tends_numbered_lists": True,
+            "verbose": True,
+        },
+    },
+    "chatglm": {
+        "markers": [
+            "好的", "以下是", "让我", "首先", "总结一下",
+            "here is", "let me", "to summarize",
+        ],
+        "refusal_patterns": [
+            "作为ai助手", "我无法", "as an ai assistant", "i cannot",
+        ],
+        "structural": {
+            "tends_markdown": True,
+            "tends_numbered_lists": True,
+            "verbose": True,
+        },
+    },
 }
 
 

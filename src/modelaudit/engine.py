@@ -41,6 +41,9 @@ class AuditEngine:
             method: 指纹方法名称
             **kwargs: 传递给指纹方法的额外参数
         """
+        if not model or not model.strip():
+            raise ValueError("模型名称不能为空")
+
         provider = kwargs.get("provider", self.config.provider)
 
         # 尝试从缓存读取
@@ -57,11 +60,15 @@ class AuditEngine:
             fp_kwargs["api_key"] = kwargs.get("api_key", self.config.api_key)
             fp_kwargs["api_base"] = kwargs.get("api_base", self.config.api_base)
             fp_kwargs["num_probes"] = kwargs.get("num_probes", self.config.num_probes)
+            fp_kwargs["api_timeout"] = kwargs.get("api_timeout", self.config.api_timeout)
+            fp_kwargs["max_retries"] = kwargs.get("max_retries", self.config.api_max_retries)
         elif method == "dli":
             fp_kwargs["provider"] = provider
             fp_kwargs["api_key"] = kwargs.get("api_key", self.config.api_key)
             fp_kwargs["api_base"] = kwargs.get("api_base", self.config.api_base)
             fp_kwargs["num_probes"] = kwargs.get("num_probes", 8)
+            fp_kwargs["api_timeout"] = kwargs.get("api_timeout", self.config.api_timeout)
+            fp_kwargs["max_retries"] = kwargs.get("max_retries", self.config.api_max_retries)
         elif method == "reef":
             fp_kwargs["device"] = kwargs.get("device", "cpu")
 

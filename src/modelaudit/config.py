@@ -15,6 +15,10 @@ class AuditConfig(BaseModel):
     api_base: str = ""
     num_probes: int = 20
 
+    # API 调用配置
+    api_timeout: int = Field(default=60, ge=10, le=300, description="API 调用超时（秒）")
+    api_max_retries: int = Field(default=3, ge=0, le=10, description="API 最大重试次数")
+
     # 白盒配置
     whitebox_method: str = "reef"
     device: str = "cpu"

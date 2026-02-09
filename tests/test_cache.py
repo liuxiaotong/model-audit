@@ -96,12 +96,18 @@ class TestFingerprintCache:
         key = FingerprintCache._key("meta/llama:3.1", "llmmap", "openai")
         assert "/" not in key
         assert ":" not in key
-        assert key == "llmmap_meta_llama_3.1_openai"
+        assert key.startswith("llmmap_meta_llama_3.1_")
 
     def test_key_with_spaces(self):
         key = FingerprintCache._key("my model", "llmmap", "openai")
         assert " " not in key
-        assert key == "llmmap_my_model_openai"
+        assert key.startswith("llmmap_my_model_")
+
+    def test_key_no_collision(self):
+        """不同模型名经过 sanitize 后不应碰撞."""
+        key1 = FingerprintCache._key("meta/llama_3", "llmmap", "openai")
+        key2 = FingerprintCache._key("meta_llama/3", "llmmap", "openai")
+        assert key1 != key2
 
     def test_overwrite_existing(self, tmp_path):
         cache = FingerprintCache(str(tmp_path / "cache"))
@@ -152,13 +158,18 @@ class TestCacheTTL:
         assert result is not None
         assert result.model_id == "test-model"
 
+    def _get_cache_file(self, cache_dir, model, method, provider):
+        """获取缓存文件路径."""
+        key = FingerprintCache._key(model, method, provider)
+        return cache_dir / f"{key}.json"
+
     def test_ttl_expired(self, tmp_path):
         cache = FingerprintCache(str(tmp_path / "cache"), ttl=1)
         fp = _make_fp()
         cache.put("model", "llmmap", "openai", fp)
 
         # 手动修改 _cached_at 使其过期
-        path = tmp_path / "cache" / "llmmap_model_openai.json"
+        path = self._get_cache_file(tmp_path / "cache", "model", "llmmap", "openai")
         data = json.loads(path.read_text(encoding="utf-8"))
         data["_cached_at"] = time.time() - 10  # 10 秒前
         path.write_text(json.dumps(data), encoding="utf-8")
@@ -172,7 +183,7 @@ class TestCacheTTL:
         cache.put("model", "llmmap", "openai", fp)
 
         # 手动修改 _cached_at 为很久以前
-        path = tmp_path / "cache" / "llmmap_model_openai.json"
+        path = self._get_cache_file(tmp_path / "cache", "model", "llmmap", "openai")
         data = json.loads(path.read_text(encoding="utf-8"))
         data["_cached_at"] = time.time() - 999999
         path.write_text(json.dumps(data), encoding="utf-8")
@@ -187,7 +198,7 @@ class TestCacheTTL:
         cache.put("model", "llmmap", "openai", fp)
 
         # 删除 _cached_at 字段
-        path = tmp_path / "cache" / "llmmap_model_openai.json"
+        path = self._get_cache_file(tmp_path / "cache", "model", "llmmap", "openai")
         data = json.loads(path.read_text(encoding="utf-8"))
         data.pop("_cached_at", None)
         path.write_text(json.dumps(data), encoding="utf-8")

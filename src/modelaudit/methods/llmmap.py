@@ -153,11 +153,12 @@ def _call_model_api(
     api_key: str = "",
     api_base: str = "",
     max_retries: int = 3,
+    api_timeout: int = 60,
 ) -> str:
     """调用模型 API 获取响应，支持指数退避重试."""
     for attempt in range(max_retries):
         try:
-            text = _call_model_api_once(model, prompt, provider, api_key, api_base)
+            text = _call_model_api_once(model, prompt, provider, api_key, api_base, api_timeout)
             if not text or not text.strip():
                 logger.warning("API 返回空响应 (model=%s, attempt=%d)", model, attempt + 1)
                 if attempt < max_retries - 1:
@@ -202,6 +203,7 @@ def _call_model_api_once(
     provider: str = "openai",
     api_key: str = "",
     api_base: str = "",
+    api_timeout: int = 60,
 ) -> str:
     """单次调用模型 API."""
     if provider == "openai":
@@ -216,6 +218,7 @@ def _call_model_api_once(
         if api_base:
             client_kwargs["base_url"] = api_base
 
+        client_kwargs["timeout"] = float(api_timeout)
         client = OpenAI(**client_kwargs)
         response = client.chat.completions.create(
             model=model,
@@ -267,7 +270,7 @@ def _call_model_api_once(
                 "temperature": 0.0,
             },
             headers=headers,
-            timeout=60,
+            timeout=api_timeout,
         )
         resp.raise_for_status()
         data = resp.json()
@@ -295,11 +298,15 @@ class LLMmapFingerprinter(BlackBoxFingerprinter):
         api_key: str = "",
         api_base: str = "",
         num_probes: int = 8,
+        api_timeout: int = 60,
+        max_retries: int = 3,
     ):
         self.provider = provider
         self.api_key = api_key
         self.api_base = api_base
         self.num_probes = num_probes
+        self.api_timeout = api_timeout
+        self.max_retries = max_retries
         self._model: str = ""
         self._responses: list[str] = []
 
@@ -307,7 +314,7 @@ class LLMmapFingerprinter(BlackBoxFingerprinter):
         """设置目标模型."""
         self._model = model
         self._responses = []
-        # 覆盖 provider 设置
+        # 覆盖设置
         if "provider" in kwargs:
             self.provider = kwargs["provider"]
         if "api_key" in kwargs:
@@ -333,6 +340,8 @@ class LLMmapFingerprinter(BlackBoxFingerprinter):
                 provider=self.provider,
                 api_key=self.api_key,
                 api_base=self.api_base,
+                max_retries=self.max_retries,
+                api_timeout=self.api_timeout,
             )
 
         # 并发发送探测 (最多 4 个并发)

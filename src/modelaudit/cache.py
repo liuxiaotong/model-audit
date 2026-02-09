@@ -4,6 +4,7 @@
 支持 TTL 过期机制。
 """
 
+import hashlib
 import json
 import logging
 import time
@@ -99,6 +100,9 @@ class FingerprintCache:
 
     @staticmethod
     def _key(model: str, method: str, provider: str) -> str:
-        """生成缓存文件名."""
-        safe_model = model.replace("/", "_").replace(":", "_").replace(" ", "_")
-        return f"{method}_{safe_model}_{provider}"
+        """生成缓存文件名 (hash 防碰撞)."""
+        combined = f"{method}:{model}:{provider}"
+        digest = hashlib.sha256(combined.encode()).hexdigest()[:16]
+        # 前缀保留可读性, hash 保证唯一性
+        safe_model = model.replace("/", "_").replace(":", "_").replace(" ", "_")[:40]
+        return f"{method}_{safe_model}_{digest}"

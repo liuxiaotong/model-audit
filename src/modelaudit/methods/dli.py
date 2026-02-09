@@ -158,11 +158,15 @@ class DLIFingerprinter(BlackBoxFingerprinter):
         api_key: str = "",
         api_base: str = "",
         num_probes: int = 8,
+        api_timeout: int = 60,
+        max_retries: int = 3,
     ):
         self.provider = provider
         self.api_key = api_key
         self.api_base = api_base
         self.num_probes = num_probes
+        self.api_timeout = api_timeout
+        self.max_retries = max_retries
         self._model: str = ""
         self._responses: list[str] = []
 
@@ -197,6 +201,8 @@ class DLIFingerprinter(BlackBoxFingerprinter):
                 provider=self.provider,
                 api_key=self.api_key,
                 api_base=self.api_base,
+                max_retries=self.max_retries,
+                api_timeout=self.api_timeout,
             )
 
         # 并发发送探测 (最多 4 个并发)

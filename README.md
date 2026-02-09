@@ -52,8 +52,10 @@
 | 🧠 **REEF 白盒检测** | 基于 CKA 中间层表示相似度的蒸馏检测 |
 | 🧬 **DLI 蒸馏血缘** | 基于行为签名 + JS 散度的蒸馏血缘推断 |
 | 📊 **Benchmark 评估** | 内置 14 条样本 (6 家族) 的检测准确率评估 |
-| 🔄 **API 智能重试** | 指数退避重试 + 空响应校验 + 速率限制处理 |
-| ⏱️ **缓存 TTL** | 指纹缓存支持过期时间，模型更新后自动刷新 |
+| 🔄 **API 智能重试** | 指数退避重试 + 认证/速率限制错误分类 + 可配置超时与重试次数 |
+| ⚡ **并发探测** | ThreadPoolExecutor 并发发送探测 Prompt (4 并发) |
+| ⏱️ **缓存 TTL** | 指纹缓存支持过期时间，SHA-256 防碰撞 |
+| 🛡️ **输入校验** | 空模型名/短文本检测 + CSV 缺列提示 |
 | 🚀 **自动发布** | git tag 推送自动触发 PyPI 发布 |
 
 ## 安装 / Installation
@@ -171,16 +173,16 @@ knowlyr-modelaudit benchmark --category code
 运行 benchmark: 14 条样本...
 
 ==================================================
-总体准确率: 64.3% (9/14)
+总体准确率: 100.0% (14/14)
 ==================================================
 
 按模型家族:
   claude       100.0%
-  deepseek     50.0%
-  gemini       50.0%
-  gpt-4        66.7%
-  llama        50.0%
-  qwen         50.0%
+  deepseek     100.0%
+  gemini       100.0%
+  gpt-4        100.0%
+  llama        100.0%
+  qwen         100.0%
 ```
 
 </details>
@@ -226,7 +228,7 @@ print(f"蒸馏关系: {'是' if result.is_derived else '否'}")
 | **LLMmap** | 黑盒 | 20 个探测 Prompt，分析响应模式 | USENIX Security 2025 |
 | **DLI** | 黑盒 | 行为签名 + JS 散度蒸馏血缘推断 | ICLR 2026 |
 | **REEF** | 白盒 | CKA 逐层隐藏状态相似度比对 | NeurIPS 2024 |
-| **StyleAnalysis** | 风格分析 | 12 个模型家族的风格签名匹配 | — |
+| **StyleAnalysis** | 风格分析 | 12 个模型家族风格签名 + 语言检测 (benchmark 100%) | — |
 
 ### 支持识别的模型家族
 
@@ -432,6 +434,10 @@ report = generate_report(audit, "markdown")
 config = AuditConfig(cache_ttl=3600)
 engine = AuditEngine(config)
 
+# 可配置 API 超时与重试
+config = AuditConfig(api_timeout=120, api_max_retries=5)
+engine = AuditEngine(config)
+
 # 不使用缓存
 engine_no_cache = AuditEngine(use_cache=False)
 ```
@@ -446,12 +452,12 @@ src/modelaudit/
 ├── models.py         # Pydantic 数据模型
 ├── base.py           # Fingerprinter 抽象基类
 ├── registry.py       # 方法注册表
-├── config.py         # 配置 (含 cache_ttl)
-├── cache.py          # 指纹缓存 (TTL 过期)
+├── config.py         # 配置 (cache_ttl, api_timeout, api_max_retries)
+├── cache.py          # 指纹缓存 (TTL + SHA-256 防碰撞)
 ├── benchmark.py      # 内置 benchmark 数据集 + 评估
 ├── methods/
-│   ├── llmmap.py     # LLMmap 黑盒指纹 (含重试)
-│   ├── dli.py        # DLI 蒸馏血缘推断 (JS 散度)
+│   ├── llmmap.py     # LLMmap 黑盒指纹 (并发探测 + 智能重试)
+│   ├── dli.py        # DLI 蒸馏血缘推断 (JS 散度 + 并发探测)
 │   ├── reef.py       # REEF 白盒指纹 (CKA)
 │   └── style.py      # 风格分析
 ├── probes/

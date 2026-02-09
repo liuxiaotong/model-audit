@@ -2,6 +2,8 @@
 
 from unittest.mock import patch
 
+import pytest
+
 from modelaudit.config import AuditConfig
 from modelaudit.engine import AuditEngine
 from modelaudit.models import Fingerprint
@@ -32,6 +34,16 @@ class TestAuditEngine:
         results = engine.detect([])
         assert results == []
 
+    def test_fingerprint_empty_model_name(self):
+        engine = AuditEngine()
+        with pytest.raises(ValueError, match="模型名称不能为空"):
+            engine.fingerprint("")
+
+    def test_fingerprint_whitespace_model_name(self):
+        engine = AuditEngine()
+        with pytest.raises(ValueError, match="模型名称不能为空"):
+            engine.fingerprint("   ")
+
 
 class TestAuditConfig:
     def test_default_values(self):
@@ -49,6 +61,16 @@ class TestAuditConfig:
         )
         assert config.provider == "anthropic"
         assert config.num_probes == 4
+
+    def test_api_timeout_and_retries(self):
+        config = AuditConfig(api_timeout=120, api_max_retries=5)
+        assert config.api_timeout == 120
+        assert config.api_max_retries == 5
+
+    def test_api_timeout_default(self):
+        config = AuditConfig()
+        assert config.api_timeout == 60
+        assert config.api_max_retries == 3
 
     def test_cache_ttl(self):
         config = AuditConfig(cache_ttl=3600)

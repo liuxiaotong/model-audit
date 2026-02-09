@@ -57,6 +57,13 @@ class AuditEngine:
             fp_kwargs["api_key"] = kwargs.get("api_key", self.config.api_key)
             fp_kwargs["api_base"] = kwargs.get("api_base", self.config.api_base)
             fp_kwargs["num_probes"] = kwargs.get("num_probes", self.config.num_probes)
+        elif method == "dli":
+            fp_kwargs["provider"] = provider
+            fp_kwargs["api_key"] = kwargs.get("api_key", self.config.api_key)
+            fp_kwargs["api_base"] = kwargs.get("api_base", self.config.api_base)
+            fp_kwargs["num_probes"] = kwargs.get("num_probes", 8)
+        elif method == "reef":
+            fp_kwargs["device"] = kwargs.get("device", "cpu")
 
         logger.info("提取指纹: model=%s, method=%s, provider=%s", model, method, provider)
         fingerprinter = get_fingerprinter(method, **fp_kwargs)

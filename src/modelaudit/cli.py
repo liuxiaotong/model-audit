@@ -332,6 +332,56 @@ def audit(
         click.echo(f"\n报告已自动保存: {report_path}")
 
 
+@main.command()
+@click.option("--category", type=click.Choice(["qa", "creative", "code", "reasoning"]), help="Filter by category")
+@click.option("--label", help="Filter by model family (gpt-4, claude, llama, etc.)")
+@click.pass_context
+def benchmark(ctx, category, label):
+    """运行内置 benchmark — 评估文本来源检测准确率."""
+    from modelaudit.benchmark import evaluate_accuracy, get_benchmark_samples
+
+    verbose = ctx.obj.get("verbose", False) if ctx.obj else False
+    _setup_logging(verbose)
+
+    samples = get_benchmark_samples(category=category, label=label)
+    if not samples:
+        click.echo("没有匹配的 benchmark 样本。")
+        return
+
+    click.echo(f"运行 benchmark: {len(samples)} 条样本...")
+
+    engine = AuditEngine(use_cache=False)
+    texts = [s.text for s in samples]
+    results = engine.detect(texts)
+
+    # 匹配预测和真实标签
+    predictions = []
+    for result, sample in zip(results, samples, strict=True):
+        pred = result.predicted_model
+        predictions.append((pred, sample.label))
+
+    eval_result = evaluate_accuracy(predictions)
+
+    # 显示结果
+    click.echo(f"\n{'='*50}")
+    click.echo(f"总体准确率: {eval_result['accuracy']:.1%} ({eval_result['correct']}/{eval_result['total']})")
+    click.echo(f"{'='*50}")
+
+    if eval_result["per_class"]:
+        click.echo("\n按模型家族:")
+        for model, acc in sorted(eval_result["per_class"].items()):
+            click.echo(f"  {model:<12} {acc:.1%}")
+
+    # 详细结果
+    click.echo(f"\n{'─'*50}")
+    click.echo(f"{'#':<4} {'真实':<12} {'预测':<12} {'结果'}")
+    click.echo(f"{'─'*50}")
+
+    for i, (pred, true) in enumerate(predictions, 1):
+        icon = "✓" if pred == true else "✗"
+        click.echo(f"{i:<4} {true:<12} {pred:<12} {icon}")
+
+
 @main.group()
 def cache():
     """管理指纹缓存"""
@@ -390,6 +440,7 @@ def methods():
     method_details = {
         "llmmap": "基于探测 prompt 响应模式识别模型身份\n      参考: LLMmap (USENIX Security 2025)",
         "reef": "基于 CKA 中间层表示相似度检测蒸馏关系\n      参考: REEF (NeurIPS 2024)",
+        "dli": "基于行为签名 + JS 散度的蒸馏血缘推断\n      参考: DLI (ICLR 2026)",
     }
 
     for name, desc in method_details.items():

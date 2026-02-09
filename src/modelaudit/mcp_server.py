@@ -73,6 +73,33 @@ def create_server() -> "Server":
                             "type": "string",
                             "description": "API 提供商 (默认: openai)",
                         },
+                        "method": {
+                            "type": "string",
+                            "enum": ["llmmap", "dli", "style"],
+                            "description": "指纹方法 (默认: llmmap)",
+                        },
+                    },
+                    "required": ["model_a", "model_b"],
+                },
+            ),
+            Tool(
+                name="compare_models_whitebox",
+                description="白盒比对两个本地模型 — 使用 REEF CKA 方法比较模型隐藏状态相似度（需要模型权重）",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "model_a": {
+                            "type": "string",
+                            "description": "本地模型路径或 HuggingFace 模型名 A",
+                        },
+                        "model_b": {
+                            "type": "string",
+                            "description": "本地模型路径或 HuggingFace 模型名 B",
+                        },
+                        "device": {
+                            "type": "string",
+                            "description": "计算设备 (默认: cpu)",
+                        },
                     },
                     "required": ["model_a", "model_b"],
                 },
@@ -180,10 +207,11 @@ def create_server() -> "Server":
             model_a = arguments["model_a"]
             model_b = arguments["model_b"]
             provider = arguments.get("provider", "openai")
+            method = arguments.get("method", "llmmap")
 
             config = AuditConfig(provider=provider)
             engine = AuditEngine(config)
-            result = engine.compare(model_a, model_b, method="llmmap", provider=provider)
+            result = engine.compare(model_a, model_b, method=method, provider=provider)
 
             derived_text = "可能存在派生关系" if result.is_derived else "可能是独立模型"
             icon = "⚠️" if result.is_derived else "✓"
@@ -198,6 +226,36 @@ def create_server() -> "Server":
 - 阈值: {result.threshold}
 - 置信度: {result.confidence:.4f}
 """
+            return [TextContent(type="text", text=text)]
+
+        elif name == "compare_models_whitebox":
+            model_a = arguments["model_a"]
+            model_b = arguments["model_b"]
+            device = arguments.get("device", "cpu")
+
+            engine = AuditEngine(use_cache=False)
+            result = engine.compare(
+                model_a, model_b, method="reef", device=device,
+            )
+
+            derived_text = "可能存在派生关系" if result.is_derived else "可能是独立模型"
+            icon = "⚠️" if result.is_derived else "✓"
+
+            text = f"""## 白盒模型比对结果 (REEF CKA)
+
+{icon} **{derived_text}**
+
+- 模型 A: {model_a}
+- 模型 B: {model_b}
+- 相似度: {result.similarity:.4f}
+- 阈值: {result.threshold}
+- 置信度: {result.confidence:.4f}
+"""
+            if "layer_cka" in result.details:
+                text += "\n### 逐层 CKA 相似度\n"
+                for layer, cka in result.details["layer_cka"].items():
+                    text += f"- {layer}: {cka:.4f}\n"
+
             return [TextContent(type="text", text=text)]
 
         elif name == "audit_distillation":

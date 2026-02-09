@@ -2,6 +2,7 @@
 
 from typing import Any
 
+from modelaudit.cache import FingerprintCache
 from modelaudit.config import AuditConfig
 from modelaudit.models import AuditResult, ComparisonResult, DetectionResult, Fingerprint
 from modelaudit.registry import get_fingerprinter
@@ -10,36 +11,53 @@ from modelaudit.registry import get_fingerprinter
 class AuditEngine:
     """模型审计引擎.
 
-    提供三个核心功能:
+    提供四个核心功能:
     1. detect() — 检测文本来源
     2. verify() — 验证模型身份
     3. compare() — 比对两个模型
     4. audit() — 完整蒸馏审计（含详细报告数据）
     """
 
-    def __init__(self, config: AuditConfig | None = None):
+    def __init__(self, config: AuditConfig | None = None, use_cache: bool = True):
         self.config = config or AuditConfig()
+        self.cache = FingerprintCache(self.config.cache_dir) if use_cache else None
         # 确保方法模块已注册
         import modelaudit.methods  # noqa: F401
 
     def fingerprint(self, model: str, method: str = "llmmap", **kwargs) -> Fingerprint:
         """提取单个模型的指纹.
 
+        优先从缓存读取，缓存未命中时调用 API 并写入缓存。
+
         Args:
             model: 模型名称或路径
             method: 指纹方法名称
             **kwargs: 传递给指纹方法的额外参数
         """
+        provider = kwargs.get("provider", self.config.provider)
+
+        # 尝试从缓存读取
+        if self.cache:
+            cached = self.cache.get(model, method, provider)
+            if cached:
+                return cached
+
         fp_kwargs: dict[str, Any] = {}
         if method == "llmmap":
-            fp_kwargs["provider"] = kwargs.get("provider", self.config.provider)
+            fp_kwargs["provider"] = provider
             fp_kwargs["api_key"] = kwargs.get("api_key", self.config.api_key)
             fp_kwargs["api_base"] = kwargs.get("api_base", self.config.api_base)
             fp_kwargs["num_probes"] = kwargs.get("num_probes", self.config.num_probes)
 
         fingerprinter = get_fingerprinter(method, **fp_kwargs)
         fingerprinter.prepare(model, **kwargs)
-        return fingerprinter.get_fingerprint()
+        fp = fingerprinter.get_fingerprint()
+
+        # 写入缓存
+        if self.cache:
+            self.cache.put(model, method, provider, fp)
+
+        return fp
 
     def compare(
         self,

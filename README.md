@@ -114,26 +114,47 @@ knowlyr-modelaudit compare gpt-4o claude-sonnet --provider openai
 ### 完整蒸馏审计
 
 ```bash
-# 生成审计报告
+# 同一 provider — 生成详细审计报告
 knowlyr-modelaudit audit --teacher gpt-4o --student my-model -o report.md
+
+# 跨 provider 审计 — 分别配置不同 API
+knowlyr-modelaudit audit \
+  --teacher claude-opus --teacher-provider anthropic \
+  --student kimi-k2.5 --student-provider openai \
+  --student-api-base https://api.moonshot.cn/v1 \
+  -o report.md
+
+# 强制重新调用 API（跳过缓存）
+knowlyr-modelaudit audit --teacher gpt-4o --student my-model --no-cache
 ```
+
+自动生成 6 节详细审计报告：审计对象 → 方法 → 结果（指纹详情 + 逐条探测）→ 关键发现 → 结论 → 局限性声明。
 
 <details>
 <summary>输出示例</summary>
 
 ```
-正在审计: gpt-4o → my-model...
+正在审计: claude-opus → kimi-k2.5...
 
 判定结果: ⚠️  可能存在蒸馏关系
-置信度: 0.8750
+置信度: 0.7980
 
-教师模型 gpt-4o 与学生模型 my-model 的行为模式高度相似，
-可能存在蒸馏关系。置信度: 87.50%
-
-报告已保存: report.md
+报告已自动保存: reports/kimi-k2.5-vs-claude-opus-audit.md
 ```
 
 </details>
+
+### 指纹缓存
+
+```bash
+# 查看缓存的指纹
+knowlyr-modelaudit cache list
+
+# 清除缓存
+knowlyr-modelaudit cache clear
+```
+
+首次审计时自动缓存模型指纹到本地 `.modelaudit_cache/`，再次审计同一模型时直接复用，避免重复调 API。
 
 ### 在 Python 中接入 / Python SDK
 
@@ -328,6 +349,10 @@ knowlyr-modelaudit verify gpt-4o --provider openai
 | `knowlyr-modelaudit verify <model>` | 验证模型身份 |
 | `knowlyr-modelaudit compare <a> <b>` | 比对两个模型指纹 |
 | `knowlyr-modelaudit audit --teacher <a> --student <b>` | 完整蒸馏审计 |
+| `knowlyr-modelaudit audit ... --teacher-provider anthropic` | 跨 provider 审计 |
+| `knowlyr-modelaudit audit ... --no-cache` | 跳过缓存，强制重新调 API |
+| `knowlyr-modelaudit cache list` | 查看缓存的指纹 |
+| `knowlyr-modelaudit cache clear` | 清除所有缓存 |
 | `knowlyr-modelaudit methods` | 列出可用检测方法 |
 
 ---
@@ -337,7 +362,7 @@ knowlyr-modelaudit verify gpt-4o --provider openai
 ```python
 from modelaudit import AuditEngine, Fingerprint, ComparisonResult
 
-# 创建引擎
+# 创建引擎（默认启用指纹缓存）
 engine = AuditEngine()
 
 # 检测文本来源
@@ -349,14 +374,22 @@ for r in results:
 result = engine.compare("gpt-4o", "my-model", method="llmmap")
 print(f"相似度: {result.similarity:.4f}")
 
-# 完整审计
-audit = engine.audit("gpt-4o", "my-model")
+# 完整审计（支持跨 provider）
+audit = engine.audit(
+    "claude-opus", "kimi-k2.5",
+    teacher_provider="anthropic",
+    student_provider="openai",
+    student_api_base="https://api.moonshot.cn/v1",
+)
 print(audit.verdict)       # likely_derived / independent / inconclusive
-print(audit.confidence)    # 0.875
+print(audit.confidence)    # 0.798
 
-# 生成报告
+# 生成详细报告（6 节结构）
 from modelaudit.report import generate_report
 report = generate_report(audit, "markdown")
+
+# 不使用缓存
+engine_no_cache = AuditEngine(use_cache=False)
 ```
 
 ---
@@ -370,13 +403,14 @@ src/modelaudit/
 ├── base.py           # Fingerprinter 抽象基类
 ├── registry.py       # 方法注册表
 ├── config.py         # 配置
+├── cache.py          # 指纹缓存
 ├── methods/
 │   ├── llmmap.py     # LLMmap 黑盒指纹
 │   └── style.py      # 风格分析
 ├── probes/
 │   └── prompts.py    # 探测 Prompt 库
-├── report.py         # 报告生成
-├── cli.py            # CLI 命令行 (5 命令)
+├── report.py         # 报告生成 (6 节详细报告)
+├── cli.py            # CLI 命令行 (7 命令)
 └── mcp_server.py     # MCP Server (4 工具)
 ```
 

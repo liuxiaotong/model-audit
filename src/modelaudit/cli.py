@@ -93,7 +93,7 @@ def verify(model: str, provider: str, api_key: str, api_base: str):
     click.echo(f"正在验证 {model} (provider: {provider})...")
 
     config = AuditConfig(provider=provider, api_key=api_key, api_base=api_base)
-    engine = AuditEngine(config)
+    engine = AuditEngine(config, use_cache=True)
 
     try:
         result = engine.verify(model, provider=provider, api_key=api_key, api_base=api_base)
@@ -195,6 +195,7 @@ def compare(
     default="markdown",
     help="报告格式",
 )
+@click.option("--no-cache", is_flag=True, default=False, help="不使用指纹缓存，强制重新调用 API")
 def audit(
     teacher: str,
     student: str,
@@ -209,6 +210,7 @@ def audit(
     student_api_base: str | None,
     output: str | None,
     output_format: str,
+    no_cache: bool,
 ):
     """完整蒸馏审计 — 综合指纹比对 + 风格分析
 
@@ -229,7 +231,7 @@ def audit(
     click.echo(f"正在审计: {teacher} → {student}...")
 
     config = AuditConfig(provider=provider, api_key=api_key, api_base=api_base)
-    engine = AuditEngine(config)
+    engine = AuditEngine(config, use_cache=not no_cache)
 
     try:
         result = engine.audit(
@@ -272,6 +274,44 @@ def audit(
         report_path = reports_dir / filename
         report_path.write_text(report_content, encoding="utf-8")
         click.echo(f"\n报告已自动保存: {report_path}")
+
+
+@main.group()
+def cache():
+    """管理指纹缓存"""
+    pass
+
+
+@cache.command("list")
+@click.option("--cache-dir", type=str, default=".modelaudit_cache", help="缓存目录")
+def cache_list(cache_dir: str):
+    """列出缓存的指纹"""
+    from modelaudit.cache import FingerprintCache
+
+    c = FingerprintCache(cache_dir)
+    entries = c.list_entries()
+
+    if not entries:
+        click.echo("缓存为空")
+        return
+
+    click.echo(f"\n缓存目录: {cache_dir}/")
+    click.echo(f"共 {len(entries)} 条指纹:\n")
+
+    for e in entries:
+        click.echo(f"  {e['model']:>20} | {e['method']:>8} | {e['type']:>8} | {e['size']:>8} | {e['file']}")
+
+
+@cache.command("clear")
+@click.option("--cache-dir", type=str, default=".modelaudit_cache", help="缓存目录")
+@click.confirmation_option(prompt="确认清除所有缓存?")
+def cache_clear(cache_dir: str):
+    """清除所有缓存"""
+    from modelaudit.cache import FingerprintCache
+
+    c = FingerprintCache(cache_dir)
+    count = c.clear()
+    click.echo(f"已清除 {count} 条缓存")
 
 
 @main.command()

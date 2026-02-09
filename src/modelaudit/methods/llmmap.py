@@ -12,13 +12,17 @@
 
 import hashlib
 import json
+import logging
 import re
+import time
 from typing import Any
 
 from modelaudit.base import BlackBoxFingerprinter
 from modelaudit.models import ComparisonResult, Fingerprint
 from modelaudit.probes import get_probes
 from modelaudit.registry import register
+
+logger = logging.getLogger(__name__)
 
 
 def _extract_response_features(response: str) -> dict[str, Any]:
@@ -148,8 +152,47 @@ def _call_model_api(
     provider: str = "openai",
     api_key: str = "",
     api_base: str = "",
+    max_retries: int = 3,
 ) -> str:
-    """调用模型 API 获取响应."""
+    """调用模型 API 获取响应，支持指数退避重试."""
+    for attempt in range(max_retries):
+        try:
+            text = _call_model_api_once(model, prompt, provider, api_key, api_base)
+            if not text or not text.strip():
+                logger.warning("API 返回空响应 (model=%s, attempt=%d)", model, attempt + 1)
+                if attempt < max_retries - 1:
+                    _backoff_sleep(attempt)
+                    continue
+            return text
+        except (ImportError, ValueError):
+            raise
+        except Exception as e:
+            logger.warning(
+                "API 调用失败 (model=%s, attempt=%d/%d): %s",
+                model, attempt + 1, max_retries, e,
+            )
+            if attempt < max_retries - 1:
+                _backoff_sleep(attempt)
+            else:
+                raise
+    return ""
+
+
+def _backoff_sleep(attempt: int) -> None:
+    """指数退避等待."""
+    delay = min(2 ** attempt, 30)
+    logger.info("等待 %ds 后重试...", delay)
+    time.sleep(delay)
+
+
+def _call_model_api_once(
+    model: str,
+    prompt: str,
+    provider: str = "openai",
+    api_key: str = "",
+    api_base: str = "",
+) -> str:
+    """单次调用模型 API."""
     if provider == "openai":
         try:
             from openai import OpenAI

@@ -23,3 +23,4 @@ class AuditConfig(BaseModel):
     similarity_threshold: float = Field(default=0.85, ge=0.0, le=1.0)
     output_format: Literal["json", "markdown"] = "markdown"
     cache_dir: str = ".modelaudit_cache"
+    cache_ttl: int = Field(default=0, ge=0, description="缓存过期时间（秒），0=永不过期")

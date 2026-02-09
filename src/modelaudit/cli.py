@@ -1,6 +1,7 @@
 """ModelAudit CLI — 命令行界面."""
 
 import json
+import logging
 import sys
 from pathlib import Path
 
@@ -11,14 +12,28 @@ from modelaudit.config import AuditConfig
 from modelaudit.engine import AuditEngine
 
 
+def _setup_logging(verbose: bool) -> None:
+    """配置日志级别."""
+    level = logging.DEBUG if verbose else logging.WARNING
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s %(name)s [%(levelname)s] %(message)s",
+        datefmt="%H:%M:%S",
+    )
+
+
 @click.group()
 @click.version_option(version=__version__, prog_name="knowlyr-modelaudit")
-def main():
+@click.option("-v", "--verbose", is_flag=True, default=False, help="显示详细日志")
+@click.pass_context
+def main(ctx: click.Context, verbose: bool):
     """ModelAudit — LLM 蒸馏检测与模型指纹审计工具
 
     检测文本来源、验证模型身份、审计蒸馏关系。
     """
-    pass
+    ctx.ensure_object(dict)
+    ctx.obj["verbose"] = verbose
+    _setup_logging(verbose)
 
 
 @main.command()
@@ -60,10 +75,31 @@ def detect(
     if limit > 0:
         texts = texts[:limit]
 
-    click.echo(f"正在分析 {len(texts)} 条文本...")
-
     engine = AuditEngine()
-    results = engine.detect(texts)
+
+    # 大批量时显示进度条
+    if len(texts) > 10:
+        try:
+            from rich.progress import Progress
+
+            results = []
+            with Progress() as progress:
+                task = progress.add_task("分析文本来源...", total=len(texts))
+                # 分批处理以更新进度
+                batch_size = 50
+                for i in range(0, len(texts), batch_size):
+                    batch = texts[i : i + batch_size]
+                    results.extend(engine.detect(batch))
+                    progress.update(task, advance=len(batch))
+            # 修正 text_id（分批后需要重新编号）
+            for idx, r in enumerate(results):
+                r.text_id = idx
+        except ImportError:
+            click.echo(f"正在分析 {len(texts)} 条文本...")
+            results = engine.detect(texts)
+    else:
+        click.echo(f"正在分析 {len(texts)} 条文本...")
+        results = engine.detect(texts)
 
     if output_format == "table":
         _print_detection_table(results)
@@ -353,6 +389,7 @@ def methods():
 
     method_details = {
         "llmmap": "基于探测 prompt 响应模式识别模型身份\n      参考: LLMmap (USENIX Security 2025)",
+        "reef": "基于 CKA 中间层表示相似度检测蒸馏关系\n      参考: REEF (NeurIPS 2024)",
     }
 
     for name, desc in method_details.items():

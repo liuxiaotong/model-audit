@@ -1,7 +1,12 @@
 """测试 LLMmap 黑盒指纹方法."""
 
+from unittest.mock import patch
+
+import pytest
+
 from modelaudit.methods.llmmap import (
     LLMmapFingerprinter,
+    _call_model_api,
     _compute_fingerprint_vector,
     _cosine_similarity,
     _extract_response_features,
@@ -124,3 +129,51 @@ class TestLLMmapFingerprinter:
         result = fp.compare(fp_a, fp_b)
         assert result.similarity < 0.5
         assert result.is_derived is False
+
+
+class TestRetryLogic:
+    @patch("modelaudit.methods.llmmap._call_model_api_once")
+    @patch("modelaudit.methods.llmmap._backoff_sleep")
+    def test_retry_on_exception(self, mock_sleep, mock_api):
+        mock_api.side_effect = [ConnectionError("network"), "Success response"]
+        result = _call_model_api("model", "prompt", max_retries=3)
+        assert result == "Success response"
+        assert mock_api.call_count == 2
+        mock_sleep.assert_called_once()
+
+    @patch("modelaudit.methods.llmmap._call_model_api_once")
+    @patch("modelaudit.methods.llmmap._backoff_sleep")
+    def test_retry_on_empty_response(self, mock_sleep, mock_api):
+        mock_api.side_effect = ["", "  ", "Valid response"]
+        result = _call_model_api("model", "prompt", max_retries=3)
+        assert result == "Valid response"
+        assert mock_api.call_count == 3
+
+    @patch("modelaudit.methods.llmmap._call_model_api_once")
+    @patch("modelaudit.methods.llmmap._backoff_sleep")
+    def test_raise_after_max_retries(self, mock_sleep, mock_api):
+        mock_api.side_effect = ConnectionError("network")
+        with pytest.raises(ConnectionError):
+            _call_model_api("model", "prompt", max_retries=2)
+        assert mock_api.call_count == 2
+
+    @patch("modelaudit.methods.llmmap._call_model_api_once")
+    def test_no_retry_on_import_error(self, mock_api):
+        mock_api.side_effect = ImportError("no module")
+        with pytest.raises(ImportError):
+            _call_model_api("model", "prompt", max_retries=3)
+        assert mock_api.call_count == 1
+
+    @patch("modelaudit.methods.llmmap._call_model_api_once")
+    def test_no_retry_on_value_error(self, mock_api):
+        mock_api.side_effect = ValueError("bad value")
+        with pytest.raises(ValueError):
+            _call_model_api("model", "prompt", max_retries=3)
+        assert mock_api.call_count == 1
+
+    @patch("modelaudit.methods.llmmap._call_model_api_once")
+    def test_success_on_first_try(self, mock_api):
+        mock_api.return_value = "OK"
+        result = _call_model_api("model", "prompt", max_retries=3)
+        assert result == "OK"
+        assert mock_api.call_count == 1

@@ -1,7 +1,5 @@
 """测试数据模型."""
 
-import json
-
 from modelaudit.models import (
     AuditResult,
     ComparisonResult,

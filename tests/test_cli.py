@@ -14,7 +14,7 @@ class TestCLI:
         runner = CliRunner()
         result = runner.invoke(main, ["--version"])
         assert result.exit_code == 0
-        assert "0.2" in result.output
+        assert "0.3" in result.output
 
     def test_help(self):
         runner = CliRunner()
@@ -192,3 +192,15 @@ class TestCLI:
         result = runner.invoke(main, ["detect", str(input_file)])
         assert result.exit_code == 0
         assert "来源分布" in result.output
+
+    def test_verbose_flag(self):
+        runner = CliRunner()
+        result = runner.invoke(main, ["-v", "methods"])
+        assert result.exit_code == 0
+
+    def test_methods_shows_reef(self):
+        runner = CliRunner()
+        result = runner.invoke(main, ["methods"])
+        assert result.exit_code == 0
+        assert "reef" in result.output
+        assert "白盒" in result.output

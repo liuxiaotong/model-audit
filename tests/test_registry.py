@@ -12,10 +12,20 @@ class TestRegistry:
         assert "llmmap" in methods
         assert methods["llmmap"] == "blackbox"
 
+    def test_reef_registered(self):
+        methods = list_methods()
+        assert "reef" in methods
+        assert methods["reef"] == "whitebox"
+
     def test_get_llmmap(self):
         fp = get_fingerprinter("llmmap")
         assert fp.name == "llmmap"
         assert fp.fingerprint_type == "blackbox"
+
+    def test_get_reef(self):
+        fp = get_fingerprinter("reef")
+        assert fp.name == "reef"
+        assert fp.fingerprint_type == "whitebox"
 
     def test_get_unknown_raises(self):
         with pytest.raises(ValueError, match="未知指纹方法"):
@@ -23,4 +33,4 @@ class TestRegistry:
 
     def test_list_methods_not_empty(self):
         methods = list_methods()
-        assert len(methods) > 0
+        assert len(methods) >= 2

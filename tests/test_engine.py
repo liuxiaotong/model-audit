@@ -36,6 +36,7 @@ class TestAuditConfig:
         assert config.provider == "openai"
         assert config.similarity_threshold == 0.85
         assert config.output_format == "markdown"
+        assert config.cache_ttl == 0
 
     def test_custom_values(self):
         config = AuditConfig(
@@ -45,3 +46,13 @@ class TestAuditConfig:
         )
         assert config.provider == "anthropic"
         assert config.num_probes == 4
+
+    def test_cache_ttl(self):
+        config = AuditConfig(cache_ttl=3600)
+        assert config.cache_ttl == 3600
+
+    def test_cache_ttl_passed_to_engine(self):
+        config = AuditConfig(cache_ttl=7200)
+        engine = AuditEngine(config, use_cache=True)
+        assert engine.cache is not None
+        assert engine.cache.ttl == 7200

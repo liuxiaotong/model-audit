@@ -1,11 +1,14 @@
 """审计引擎 — 组合多种方法进行综合判定."""
 
+import logging
 from typing import Any
 
 from modelaudit.cache import FingerprintCache
 from modelaudit.config import AuditConfig
 from modelaudit.models import AuditResult, ComparisonResult, DetectionResult, Fingerprint
 from modelaudit.registry import get_fingerprinter
+
+logger = logging.getLogger(__name__)
 
 
 class AuditEngine:
@@ -20,7 +23,11 @@ class AuditEngine:
 
     def __init__(self, config: AuditConfig | None = None, use_cache: bool = True):
         self.config = config or AuditConfig()
-        self.cache = FingerprintCache(self.config.cache_dir) if use_cache else None
+        self.cache = (
+            FingerprintCache(self.config.cache_dir, ttl=self.config.cache_ttl)
+            if use_cache
+            else None
+        )
         # 确保方法模块已注册
         import modelaudit.methods  # noqa: F401
 
@@ -40,7 +47,9 @@ class AuditEngine:
         if self.cache:
             cached = self.cache.get(model, method, provider)
             if cached:
+                logger.info("缓存命中: model=%s, method=%s", model, method)
                 return cached
+            logger.debug("缓存未命中: model=%s, method=%s", model, method)
 
         fp_kwargs: dict[str, Any] = {}
         if method == "llmmap":
@@ -49,6 +58,7 @@ class AuditEngine:
             fp_kwargs["api_base"] = kwargs.get("api_base", self.config.api_base)
             fp_kwargs["num_probes"] = kwargs.get("num_probes", self.config.num_probes)
 
+        logger.info("提取指纹: model=%s, method=%s, provider=%s", model, method, provider)
         fingerprinter = get_fingerprinter(method, **fp_kwargs)
         fingerprinter.prepare(model, **kwargs)
         fp = fingerprinter.get_fingerprint()
@@ -56,6 +66,7 @@ class AuditEngine:
         # 写入缓存
         if self.cache:
             self.cache.put(model, method, provider, fp)
+            logger.debug("指纹已写入缓存: model=%s", model)
 
         return fp
 

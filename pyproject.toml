@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "knowlyr-modelaudit"
-version = "0.2.2"
+version = "0.3.0"
 description = "LLM distillation detection and model fingerprint audit tool - text source detection, model identity verification, and distillation analysis"
 readme = "README.md"
 license = "MIT"

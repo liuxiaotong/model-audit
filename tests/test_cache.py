@@ -1,8 +1,7 @@
 """测试指纹缓存."""
 
 import json
-import tempfile
-from pathlib import Path
+import time
 
 from modelaudit.cache import FingerprintCache
 from modelaudit.models import Fingerprint
@@ -141,3 +140,57 @@ class TestFingerprintCache:
         assert r2 is not None
         assert r1.data["vector"]["avg_length_chars"] == 100.0
         assert r2.data["vector"]["avg_length_chars"] == 200.0
+
+
+class TestCacheTTL:
+    def test_ttl_not_expired(self, tmp_path):
+        cache = FingerprintCache(str(tmp_path / "cache"), ttl=3600)
+        fp = _make_fp()
+        cache.put("model", "llmmap", "openai", fp)
+
+        result = cache.get("model", "llmmap", "openai")
+        assert result is not None
+        assert result.model_id == "test-model"
+
+    def test_ttl_expired(self, tmp_path):
+        cache = FingerprintCache(str(tmp_path / "cache"), ttl=1)
+        fp = _make_fp()
+        cache.put("model", "llmmap", "openai", fp)
+
+        # 手动修改 _cached_at 使其过期
+        path = tmp_path / "cache" / "llmmap_model_openai.json"
+        data = json.loads(path.read_text(encoding="utf-8"))
+        data["_cached_at"] = time.time() - 10  # 10 秒前
+        path.write_text(json.dumps(data), encoding="utf-8")
+
+        result = cache.get("model", "llmmap", "openai")
+        assert result is None
+
+    def test_ttl_zero_means_no_expiry(self, tmp_path):
+        cache = FingerprintCache(str(tmp_path / "cache"), ttl=0)
+        fp = _make_fp()
+        cache.put("model", "llmmap", "openai", fp)
+
+        # 手动修改 _cached_at 为很久以前
+        path = tmp_path / "cache" / "llmmap_model_openai.json"
+        data = json.loads(path.read_text(encoding="utf-8"))
+        data["_cached_at"] = time.time() - 999999
+        path.write_text(json.dumps(data), encoding="utf-8")
+
+        result = cache.get("model", "llmmap", "openai")
+        assert result is not None
+
+    def test_ttl_missing_cached_at(self, tmp_path):
+        """旧格式缓存文件没有 _cached_at 字段，TTL 开启时应视为过期."""
+        cache = FingerprintCache(str(tmp_path / "cache"), ttl=3600)
+        fp = _make_fp()
+        cache.put("model", "llmmap", "openai", fp)
+
+        # 删除 _cached_at 字段
+        path = tmp_path / "cache" / "llmmap_model_openai.json"
+        data = json.loads(path.read_text(encoding="utf-8"))
+        data.pop("_cached_at", None)
+        path.write_text(json.dumps(data), encoding="utf-8")
+
+        result = cache.get("model", "llmmap", "openai")
+        assert result is None  # _cached_at=0, 总是过期

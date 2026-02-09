@@ -1,0 +1,72 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "knowlyr-modelaudit"
+version = "0.1.0"
+description = "LLM distillation detection and model fingerprint audit tool - text source detection, model identity verification, and distillation analysis"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [
+    { name = "Liu Kai", email = "mrliukai@gmail.com" }
+]
+keywords = [
+    "llm", "model-fingerprint", "distillation-detection",
+    "model-audit", "model-lineage", "ai-security",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    "click>=8.0",
+    "pydantic>=2.0",
+    "rich>=13.0",
+]
+
+[project.optional-dependencies]
+blackbox = ["openai>=1.0", "anthropic>=0.18", "httpx>=0.24"]
+whitebox = ["torch>=2.0", "transformers>=4.30", "numpy>=1.20"]
+mcp = ["mcp>=1.0"]
+dev = ["pytest", "ruff"]
+all = ["knowlyr-modelaudit[blackbox,whitebox,mcp]"]
+
+[project.scripts]
+knowlyr-modelaudit = "modelaudit.cli:main"
+
+[project.entry-points."mcp.servers"]
+knowlyr-modelaudit = "modelaudit.mcp_server:serve"
+
+[project.urls]
+Homepage = "https://github.com/liuxiaotong/model-audit"
+Documentation = "https://github.com/liuxiaotong/model-audit#readme"
+Repository = "https://github.com/liuxiaotong/model-audit"
+Issues = "https://github.com/liuxiaotong/model-audit/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/modelaudit"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4"]
+ignore = ["E501", "B904"]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -150,7 +150,7 @@ def _generate_detailed_report(result: AuditResult) -> str:
     lines.append("")
     lines.append(f"**审计时间**: {now}")
     lines.append(f"**审计工具**: knowlyr-modelaudit {__version__}")
-    lines.append("**审计方法**: LLMmap 黑盒指纹 + 风格分析")
+    lines.append("**审计方法**: LLMmap 黑盒指纹 + DLI 行为签名 + 风格分析")
     lines.append("")
     lines.append("---")
     lines.append("")
@@ -169,6 +169,7 @@ def _generate_detailed_report(result: AuditResult) -> str:
         teacher_vec, student_vec,
         probe_details, similarity, threshold,
         verdict_icon, verdict_text, confidence_text,
+        result_comparisons=result.comparisons,
     )
 
     # ── 4. 关键发现 ──
@@ -185,6 +186,12 @@ def _generate_detailed_report(result: AuditResult) -> str:
         teacher_vec, student_vec,
         similarity, threshold, total_probes, result.verdict,
     )
+
+    # ── 跳过方法提示 ──
+    skipped_methods = result.details.get("skipped_methods", [])
+    if skipped_methods:
+        lines.append("> **注意**: 以下方法被跳过: " + ", ".join(skipped_methods))
+        lines.append("")
 
     # ── 6. 局限性声明 ──
     _section_limitations(lines, total_probes)
@@ -273,6 +280,13 @@ def _section_methodology(
     lines.append("- 特征归一化（消除量纲差异）后计算余弦相似度")
     lines.append(f"- 蒸馏判定阈值: **{threshold}**")
     lines.append("")
+    lines.append("### 2.4 DLI 行为签名比对")
+    lines.append("")
+    lines.append("- 从探测响应中提取行为签名 (bigram 分布 + 多维特征)")
+    lines.append("- 用 Jensen-Shannon 散度衡量分布差异")
+    lines.append("- 综合 bigram 相似度 (40%) + 特征余弦相似度 (60%)")
+    lines.append("- DLI 蒸馏判定阈值: **0.80**")
+    lines.append("")
     lines.append("---")
     lines.append("")
 
@@ -289,6 +303,7 @@ def _section_results(
     verdict_icon: str,
     verdict_text: str,
     confidence_text: str,
+    result_comparisons: list | None = None,
 ) -> int:
     """第 3 节：审计结果. 返回风格一致的 Probe 数量."""
     lines.append("## 3. 审计结果")
@@ -309,6 +324,21 @@ def _section_results(
     lines.append("└──────────────────────────────────────────────┘")
     lines.append("```")
     lines.append("")
+
+    # 3.1b 多方法比对结果
+    if result_comparisons and len(result_comparisons) > 1:
+        lines.append("### 3.1b 多方法投票")
+        lines.append("")
+        lines.append("| 方法 | 相似度 | 阈值 | 判定 |")
+        lines.append("|------|--------|------|------|")
+        for c in result_comparisons:
+            derived_text = "⚠️ 派生" if c.is_derived else "✓ 独立"
+            lines.append(f"| {c.method} | {c.similarity:.4f} | {c.threshold} | {derived_text} |")
+        lines.append("")
+        derived_count = sum(1 for c in result_comparisons if c.is_derived)
+        total_methods = len(result_comparisons)
+        lines.append(f"**投票结果**: {derived_count}/{total_methods} 方法判定为派生关系")
+        lines.append("")
 
     # 3.2 指纹相似度详情
     lines.append("### 3.2 指纹相似度详情")

@@ -177,3 +177,21 @@ class TestRetryLogic:
         result = _call_model_api("model", "prompt", max_retries=3)
         assert result == "OK"
         assert mock_api.call_count == 1
+
+    @patch("modelaudit.methods.llmmap._call_model_api_once")
+    def test_auth_error_no_retry(self, mock_api):
+        """401/403 认证错误应立即抛出, 不重试."""
+        mock_api.side_effect = Exception("Error 401 Unauthorized")
+        with pytest.raises(ValueError, match="API 认证失败"):
+            _call_model_api("model", "prompt", max_retries=3)
+        assert mock_api.call_count == 1
+
+    @patch("modelaudit.methods.llmmap._call_model_api_once")
+    @patch("modelaudit.methods.llmmap._backoff_sleep")
+    def test_rate_limit_retries_with_longer_backoff(self, mock_sleep, mock_api):
+        """429 速率限制应重试, 且退避更长."""
+        mock_api.side_effect = [Exception("429 rate limit"), "OK"]
+        result = _call_model_api("model", "prompt", max_retries=3)
+        assert result == "OK"
+        # 速率限制时 attempt+1 传入 backoff, 所以退避更长
+        mock_sleep.assert_called_once_with(1)

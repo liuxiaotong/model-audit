@@ -14,11 +14,18 @@ from typing import Any
 from modelaudit.models import DetectionResult
 
 # 已知 LLM 风格特征库
+# markers: 独特短语 (越独特越好，避免跨模型重叠)
+# refusal_patterns: 拒绝时的典型表达
+# structural: 格式偏好
+# lang: 主要语言 ("en", "zh", "both")
 MODEL_STYLE_SIGNATURES: dict[str, dict[str, Any]] = {
     "gpt-4": {
         "markers": [
-            "certainly", "i'd be happy to", "let me", "here's",
-            "it's worth noting", "in summary", "keep in mind",
+            "certainly! here's", "comprehensive breakdown",
+            "it's important to note", "it's worth noting",
+            "let me know if you'd like", "keep in mind",
+            "in more detail", "would you like me to",
+            "let me walk you through", "active area of research",
         ],
         "refusal_patterns": [
             "i can't assist", "i'm not able to", "as an ai language model",
@@ -26,13 +33,15 @@ MODEL_STYLE_SIGNATURES: dict[str, dict[str, Any]] = {
         "structural": {
             "tends_markdown": True,
             "tends_numbered_lists": True,
+            "tends_code_blocks": True,
             "verbose": True,
         },
+        "lang": "en",
     },
     "gpt-3.5": {
         "markers": [
             "certainly!", "sure!", "of course!", "absolutely!",
-            "here's", "let me",
+            "no problem!", "hope that helps!",
         ],
         "refusal_patterns": [
             "as an ai language model", "i don't have the ability",
@@ -40,27 +49,38 @@ MODEL_STYLE_SIGNATURES: dict[str, dict[str, Any]] = {
         "structural": {
             "tends_markdown": False,
             "tends_numbered_lists": True,
+            "tends_code_blocks": False,
             "verbose": False,
         },
+        "lang": "en",
     },
     "claude": {
         "markers": [
-            "i'd be happy to", "i think", "that said", "it's worth",
-            "here's my", "let me think", "interesting question",
+            "i'd be happy to help", "let me think through this",
+            "i should note", "i want to be straightforward",
+            "nuanced", "i want to be careful",
+            "different perspectives", "ethical implications",
+            "would you like me to continue",
+            "take it in a different direction",
         ],
         "refusal_patterns": [
-            "i don't think i should", "i'd rather not", "i want to be helpful but",
+            "i don't think i should", "i'd rather not",
+            "i want to be helpful but",
         ],
         "structural": {
             "tends_markdown": True,
             "tends_numbered_lists": False,
+            "tends_code_blocks": True,
             "verbose": True,
         },
+        "lang": "en",
     },
     "llama": {
         "markers": [
-            "sure thing", "no problem", "here is",
-            "i hope that helps", "feel free",
+            "sure thing!", "no problem", "pretty cool",
+            "check out this", "here you go",
+            "let me know if you need anything else",
+            "so basically", "think of it like",
         ],
         "refusal_patterns": [
             "i cannot", "i'm just an ai", "it's not appropriate",
@@ -68,13 +88,18 @@ MODEL_STYLE_SIGNATURES: dict[str, dict[str, Any]] = {
         "structural": {
             "tends_markdown": False,
             "tends_numbered_lists": False,
+            "tends_code_blocks": True,
             "verbose": False,
         },
+        "lang": "en",
     },
     "gemini": {
         "markers": [
-            "absolutely", "great question", "here's what",
-            "to summarize", "in essence",
+            "great question!", "here's what you need to know",
+            "**key applications**", "key applications",
+            "it's worth noting that", "progress is accelerating",
+            "i can provide a code implementation",
+            "systematically", "noisy and error-prone",
         ],
         "refusal_patterns": [
             "i'm a large language model", "i'm designed to be helpful",
@@ -82,41 +107,49 @@ MODEL_STYLE_SIGNATURES: dict[str, dict[str, Any]] = {
         "structural": {
             "tends_markdown": True,
             "tends_numbered_lists": True,
+            "tends_code_blocks": False,
             "verbose": True,
         },
+        "lang": "en",
     },
     "qwen": {
         "markers": [
-            "of course", "here's", "let me", "i'll",
-            "hope this helps", "feel free to ask",
+            "好的，我来", "为您详细", "具体来说",
+            "以下是一个高效的", "这个实现", "时间复杂度",
+            "核心思想", "优势在于",
         ],
         "refusal_patterns": [
-            "as an ai assistant", "i'm not able to",
+            "作为ai助手", "我无法提供",
         ],
         "structural": {
             "tends_markdown": True,
             "tends_numbered_lists": True,
+            "tends_code_blocks": True,
             "verbose": False,
         },
+        "lang": "zh",
     },
     "deepseek": {
         "markers": [
-            "let me", "here's", "to clarify", "step by step",
-            "let's break this down", "the key point is",
+            "嗯，让我仔细想想", "从多个角度", "本质上是",
+            "状态转移方程", "边界条件", "如果需要优化",
+            "从技术层面看", "从实际应用角度",
         ],
         "refusal_patterns": [
-            "as an ai assistant", "i cannot provide", "i'm not able to",
+            "作为ai助手", "我无法提供",
         ],
         "structural": {
             "tends_markdown": True,
             "tends_numbered_lists": True,
+            "tends_code_blocks": True,
             "verbose": True,
         },
+        "lang": "zh",
     },
     "mistral": {
         "markers": [
-            "here is", "let me", "to answer your question",
-            "in short", "the answer is",
+            "to answer your question",
+            "in short", "the answer is", "straightforward",
         ],
         "refusal_patterns": [
             "i cannot", "i must decline", "it would be inappropriate",
@@ -124,13 +157,15 @@ MODEL_STYLE_SIGNATURES: dict[str, dict[str, Any]] = {
         "structural": {
             "tends_markdown": False,
             "tends_numbered_lists": False,
+            "tends_code_blocks": False,
             "verbose": False,
         },
+        "lang": "en",
     },
     "yi": {
         "markers": [
-            "sure", "here's", "let me explain", "to put it simply",
-            "in a nutshell", "i'd like to point out",
+            "to put it simply", "in a nutshell",
+            "i'd like to point out",
         ],
         "refusal_patterns": [
             "as an ai", "i'm not able to", "i cannot assist with",
@@ -138,13 +173,14 @@ MODEL_STYLE_SIGNATURES: dict[str, dict[str, Any]] = {
         "structural": {
             "tends_markdown": True,
             "tends_numbered_lists": True,
+            "tends_code_blocks": False,
             "verbose": True,
         },
+        "lang": "en",
     },
     "phi": {
         "markers": [
-            "here's", "the answer is", "let me",
-            "to summarize", "in conclusion",
+            "in conclusion", "the answer is simply",
         ],
         "refusal_patterns": [
             "i cannot", "i'm unable to", "as a language model",
@@ -152,13 +188,15 @@ MODEL_STYLE_SIGNATURES: dict[str, dict[str, Any]] = {
         "structural": {
             "tends_markdown": False,
             "tends_numbered_lists": False,
+            "tends_code_blocks": False,
             "verbose": False,
         },
+        "lang": "en",
     },
     "cohere": {
         "markers": [
-            "sure!", "happy to help", "here's what i found",
-            "to elaborate", "it's important to note",
+            "here's what i found", "to elaborate",
+            "happy to help with that",
         ],
         "refusal_patterns": [
             "i'm not able to", "i'd prefer not to", "i cannot help with",
@@ -166,24 +204,38 @@ MODEL_STYLE_SIGNATURES: dict[str, dict[str, Any]] = {
         "structural": {
             "tends_markdown": True,
             "tends_numbered_lists": True,
+            "tends_code_blocks": False,
             "verbose": True,
         },
+        "lang": "en",
     },
     "chatglm": {
         "markers": [
-            "好的", "以下是", "让我", "首先", "总结一下",
-            "here is", "let me", "to summarize",
+            "好的", "以下是", "总结一下",
+            "首先我们需要", "希望对您有帮助",
         ],
         "refusal_patterns": [
-            "作为ai助手", "我无法", "as an ai assistant", "i cannot",
+            "作为ai助手", "我无法",
         ],
         "structural": {
             "tends_markdown": True,
             "tends_numbered_lists": True,
+            "tends_code_blocks": False,
             "verbose": True,
         },
+        "lang": "zh",
     },
 }
+
+
+def _detect_lang(text: str) -> str:
+    """检测文本主要语言: 'zh' 或 'en'."""
+    cjk_count = sum(1 for ch in text if "\u4e00" <= ch <= "\u9fff")
+    # 绝对数量兜底: 即使代码多, 10 个汉字也算中文
+    if cjk_count >= 10:
+        return "zh"
+    total = len(text) or 1
+    return "zh" if cjk_count / total > 0.15 else "en"
 
 
 def _compute_style_scores(text: str) -> dict[str, float]:
@@ -191,36 +243,59 @@ def _compute_style_scores(text: str) -> dict[str, float]:
     text_lower = text.lower()
     words = text_lower.split()
     total_words = len(words) or 1
+    text_lang = _detect_lang(text)
+
+    # 预计算结构特征 (只算一次)
+    has_md = bool(re.search(r"^#+\s", text, re.MULTILINE))
+    has_numbered = bool(re.search(r"^\s*\d+[.)]\s", text, re.MULTILINE))
+    has_code_blocks = "```" in text
+    is_verbose = total_words > 150
+
+    # 检测是否有拒绝内容 (决定是否启用拒绝分数)
+    has_refusal_hint = any(
+        kw in text_lower
+        for kw in ("i cannot", "i can't", "unable to", "我无法", "作为ai")
+    )
 
     scores: dict[str, float] = {}
 
     for model_name, sig in MODEL_STYLE_SIGNATURES.items():
         score = 0.0
+        model_lang = sig.get("lang", "en")
 
-        # 标记词匹配
+        # ── 1. 语言匹配 (权重 0.20) ──
+        if text_lang == model_lang:
+            score += 0.20
+        elif model_lang == "both":
+            score += 0.10
+        # 语言不匹配: +0, 形成天然屏障
+
+        # ── 2. 标记词匹配 (权重 0.50) ──
+        # 用固定分母 (3) 归一化, 避免 marker 多的模型吃亏
         marker_hits = sum(1 for m in sig["markers"] if m in text_lower)
-        score += marker_hits / max(len(sig["markers"]), 1) * 0.4
+        score += min(marker_hits / 3, 1.0) * 0.50
 
-        # 拒绝模式匹配
-        refusal_hits = sum(1 for p in sig["refusal_patterns"] if p in text_lower)
-        score += refusal_hits / max(len(sig["refusal_patterns"]), 1) * 0.3
-
-        # 结构特征匹配
+        # ── 3. 结构特征匹配 (权重 0.20) ──
+        # 只对文本实际展现的特征计分, 避免 "双否" 虚假匹配
         structural = sig["structural"]
-        has_md = bool(re.search(r"^#+\s", text, re.MULTILINE))
-        has_numbered = bool(re.search(r"^\s*\d+[.)]\s", text, re.MULTILINE))
-        is_verbose = total_words > 150
+        struct_score = 0.0
+        for text_has, key in [
+            (has_md, "tends_markdown"),
+            (has_numbered, "tends_numbered_lists"),
+            (has_code_blocks, "tends_code_blocks"),
+            (is_verbose, "verbose"),
+        ]:
+            model_tends = structural.get(key, False)
+            if text_has and model_tends:
+                struct_score += 0.05   # 正向匹配
+            elif text_has and not model_tends:
+                struct_score -= 0.02   # 文本有但模型不倾向 → 轻微惩罚
+        score += struct_score
 
-        struct_score = 0
-        struct_total = 3
-        if has_md == structural.get("tends_markdown", False):
-            struct_score += 1
-        if has_numbered == structural.get("tends_numbered_lists", False):
-            struct_score += 1
-        if is_verbose == structural.get("verbose", False):
-            struct_score += 1
-
-        score += (struct_score / struct_total) * 0.3
+        # ── 4. 拒绝模式 (权重 0.10, 仅文本含拒绝时生效) ──
+        if has_refusal_hint:
+            refusal_hits = sum(1 for p in sig["refusal_patterns"] if p in text_lower)
+            score += refusal_hits / max(len(sig["refusal_patterns"]), 1) * 0.10
 
         scores[model_name] = round(score, 4)
 

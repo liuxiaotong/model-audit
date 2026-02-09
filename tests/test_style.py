@@ -2,6 +2,7 @@
 
 from modelaudit.methods.style import (
     _compute_style_scores,
+    _detect_lang,
     compute_style_fingerprint,
     detect_text_source,
 )
@@ -72,3 +73,49 @@ class TestComputeStyleFingerprint:
         assert isinstance(fingerprint, dict)
         assert len(fingerprint) > 0
         assert all(isinstance(v, float) for v in fingerprint.values())
+
+
+class TestDetectLang:
+    def test_english(self):
+        assert _detect_lang("Hello, this is a test.") == "en"
+
+    def test_chinese(self):
+        assert _detect_lang("这是一个中文测试文本，用来检测语言识别功能。") == "zh"
+
+    def test_code_heavy_chinese(self):
+        """代码多但包含中文注释的文本应识别为中文."""
+        text = "```python\ndef foo():\n    pass\n```\n\n这个实现使用了动态规划的思路。"
+        assert _detect_lang(text) == "zh"
+
+    def test_empty(self):
+        assert _detect_lang("") == "en"
+
+
+class TestBenchmarkAccuracy:
+    def test_all_benchmark_correct(self):
+        """所有 benchmark 样本应被正确分类."""
+        from modelaudit.benchmark import BENCHMARK_SAMPLES
+
+        for sample in BENCHMARK_SAMPLES:
+            scores = _compute_style_scores(sample.text)
+            predicted = max(scores, key=lambda k: scores[k])
+            assert predicted == sample.label, (
+                f"Expected {sample.label}, got {predicted} "
+                f"(category={sample.category})"
+            )
+
+
+class TestStructuralScoring:
+    def test_plain_text_no_structural_bias(self):
+        """纯文本不应因结构特征偏向任何模型."""
+        scores = _compute_style_scores("A simple short text.")
+        # 所有英文模型应只有 lang 分 (0.20), 无结构加分
+        for model in ("mistral", "phi"):
+            assert scores[model] == 0.20
+
+    def test_code_blocks_boost(self):
+        """含代码块的文本应给 tends_code_blocks=True 的模型加分."""
+        text = "Here is some code:\n```python\nprint('hi')\n```"
+        scores = _compute_style_scores(text)
+        # gpt-4 tends_code_blocks=True, gemini tends_code_blocks=False
+        assert scores["gpt-4"] > scores["gemini"]

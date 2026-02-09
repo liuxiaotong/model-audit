@@ -222,6 +222,7 @@ class AuditEngine:
         comparisons: list[ComparisonResult] = [comparison]
 
         # ── 2b. DLI 行为签名比对 (复用 LLMmap 已收集的响应) ──
+        skipped: list[str] = []
         try:
             from modelaudit.methods.dli import (
                 _compute_behavior_similarity,
@@ -248,8 +249,13 @@ class AuditEngine:
                     details={"reused_from": "llmmap_responses"},
                 )
                 comparisons.append(dli_comparison)
-        except Exception:
-            logger.debug("DLI 比对跳过 (非关键错误)")
+            else:
+                reason = "teacher 响应为空" if not teacher_responses else "student 响应为空"
+                skipped.append(f"DLI ({reason})")
+                logger.info("DLI 比对跳过: %s", reason)
+        except Exception as exc:
+            skipped.append(f"DLI ({exc})")
+            logger.debug("DLI 比对跳过: %s", exc)
 
         # ── 3. 逐条探测的风格分析 ──
         from modelaudit.methods.style import _compute_style_scores
@@ -310,6 +316,8 @@ class AuditEngine:
                 "api_base": s_api_base,
             },
         }
+        if skipped:
+            details["skipped_methods"] = skipped
 
         return AuditResult(
             model_a=teacher,

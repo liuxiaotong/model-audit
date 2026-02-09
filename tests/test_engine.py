@@ -99,3 +99,21 @@ class TestAuditDLIIntegration:
             assert "llmmap" in methods
             assert "dli" in methods
             assert len(result.comparisons) >= 2
+
+    def test_audit_skips_dli_when_no_responses(self):
+        """无 raw_responses 时 DLI 应跳过并记录原因."""
+        mock_fp = Fingerprint(
+            model_id="test",
+            method="llmmap",
+            fingerprint_type="blackbox",
+            data={"vector": {}, "raw_responses": [], "probe_ids": []},
+        )
+
+        with patch.object(AuditEngine, "fingerprint", return_value=mock_fp):
+            engine = AuditEngine(use_cache=False)
+            result = engine.audit("model-a", "model-b")
+
+            methods = [c.method for c in result.comparisons]
+            assert "dli" not in methods
+            assert "skipped_methods" in result.details
+            assert any("DLI" in s for s in result.details["skipped_methods"])

@@ -75,6 +75,10 @@ def detect(
     if limit > 0:
         texts = texts[:limit]
 
+    short_count = sum(1 for t in texts if len(t.split()) < 10)
+    if short_count > 0:
+        click.echo(f"⚠ {short_count} 条文本少于 10 个词，检测置信度可能较低", err=True)
+
     engine = AuditEngine()
 
     # 大批量时显示进度条

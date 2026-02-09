@@ -167,6 +167,17 @@ def _call_model_api(
         except (ImportError, ValueError):
             raise
         except Exception as e:
+            err_str = str(e).lower()
+            # 认证/权限错误 — 不重试
+            if any(kw in err_str for kw in ("401", "403", "unauthorized", "forbidden",
+                                             "invalid api key", "authentication")):
+                raise ValueError(f"API 认证失败 (model={model}): {e}") from e
+            # 速率限制 — 加长退避
+            if "429" in err_str or "rate" in err_str:
+                logger.warning("API 速率限制 (model=%s, attempt=%d/%d)", model, attempt + 1, max_retries)
+                if attempt < max_retries - 1:
+                    _backoff_sleep(attempt + 1)  # 加长退避
+                    continue
             logger.warning(
                 "API 调用失败 (model=%s, attempt=%d/%d): %s",
                 model, attempt + 1, max_retries, e,
@@ -313,14 +324,30 @@ class LLMmapFingerprinter(BlackBoxFingerprinter):
         responses: list[str] = []
         probe_features: list[dict[str, Any]] = []
 
-        for probe in probes:
-            response = _call_model_api(
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        def _call_probe(probe):
+            return _call_model_api(
                 model=self._model,
                 prompt=probe.prompt,
                 provider=self.provider,
                 api_key=self.api_key,
                 api_base=self.api_base,
             )
+
+        # 并发发送探测 (最多 4 个并发)
+        probe_response_map: dict[str, str] = {}
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            future_to_probe = {
+                executor.submit(_call_probe, probe): probe for probe in probes
+            }
+            for future in as_completed(future_to_probe):
+                probe = future_to_probe[future]
+                probe_response_map[probe.id] = future.result()
+
+        # 按原始顺序组装结果
+        for probe in probes:
+            response = probe_response_map[probe.id]
             responses.append(response)
             features = _extract_response_features(response)
             probe_features.append(features)

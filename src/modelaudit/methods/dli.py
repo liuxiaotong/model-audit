@@ -188,15 +188,30 @@ class DLIFingerprinter(BlackBoxFingerprinter):
         probes = get_probes(count=self.num_probes)
         responses: list[str] = []
 
-        for probe in probes:
-            response = _call_model_api(
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        def _call_probe(probe):
+            return _call_model_api(
                 model=self._model,
                 prompt=probe.prompt,
                 provider=self.provider,
                 api_key=self.api_key,
                 api_base=self.api_base,
             )
-            responses.append(response)
+
+        # 并发发送探测 (最多 4 个并发)
+        probe_response_map: dict[str, str] = {}
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            future_to_probe = {
+                executor.submit(_call_probe, probe): probe for probe in probes
+            }
+            for future in as_completed(future_to_probe):
+                probe = future_to_probe[future]
+                probe_response_map[probe.id] = future.result()
+
+        # 按原始顺序组装结果
+        for probe in probes:
+            responses.append(probe_response_map[probe.id])
 
         self._responses = responses
         signature = _extract_behavior_signature(responses)

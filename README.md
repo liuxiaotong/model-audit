@@ -415,32 +415,6 @@ src/modelaudit/
 
 [MIT](LICENSE)
 
----
-
-## AI Data Pipeline 生态
-
-> 7 个项目覆盖 AI 数据工程全流程，均支持 CLI + MCP，可独立使用也可组合成流水线。
-
-| Tool | Description | Link |
-|------|-------------|------|
-| **AI Dataset Radar** | Competitive intelligence for AI training datasets | [GitHub](https://github.com/liuxiaotong/ai-dataset-radar) |
-| **DataRecipe** | Reverse-engineer datasets into annotation specs & cost models | [GitHub](https://github.com/liuxiaotong/data-recipe) |
-| **DataSynth** | Seed-to-scale synthetic data generation | [GitHub](https://github.com/liuxiaotong/data-synth) |
-| **DataLabel** | Lightweight, serverless HTML labeling tool | [GitHub](https://github.com/liuxiaotong/data-label) |
-| **DataCheck** | Automated quality checks & anomaly detection | [GitHub](https://github.com/liuxiaotong/data-check) |
-| **ModelAudit** | LLM distillation detection & model fingerprinting | You are here |
-| **knowlyr-agent** | Sandbox + Recorder + Reward + Hub (monorepo) | [GitHub](https://github.com/liuxiaotong/knowlyr-agent) |
-
-
-```mermaid
-graph LR
-    A[Radar] --> B[Recipe] --> C[Synth] --> E[Check] --> F[Audit] --> G[Hub]
-    B --> D[Label] --> E
-    G --> H[Sandbox] --> I[Recorder] --> J[Reward]
-```
-
----
-
 <div align="center">
 <sub>为数据团队提供模型质量保障与蒸馏审计能力</sub>
 </div>

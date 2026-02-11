@@ -16,3 +16,4 @@ venv/
 .DS_Store
 .modelaudit_cache/
 reports/
+articles/zhihu-model-audit.md

@@ -14,6 +14,7 @@ venv/
 .mypy_cache/
 *.so
 .DS_Store
+.claude/
 .modelaudit_cache/
 reports/
 articles/zhihu-model-audit.md

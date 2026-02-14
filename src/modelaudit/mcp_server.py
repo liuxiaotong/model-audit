@@ -146,6 +146,57 @@ def create_server() -> "Server":
                     "required": ["teacher", "student"],
                 },
             ),
+            Tool(
+                name="audit_memorization",
+                description="检测模型是否记忆了训练数据 — 通过前缀补全和逐字检查评估记忆程度",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "text_samples": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "候选训练文本列表",
+                        },
+                        "model": {
+                            "type": "string",
+                            "description": "待测模型名称 (默认: gpt-4o)",
+                        },
+                        "provider": {
+                            "type": "string",
+                            "enum": ["openai", "anthropic"],
+                            "description": "API 提供商 (默认: openai)",
+                        },
+                        "method": {
+                            "type": "string",
+                            "enum": ["prefix_completion", "verbatim_check", "both"],
+                            "description": "检测方法 (默认: prefix_completion)",
+                        },
+                    },
+                    "required": ["text_samples"],
+                },
+            ),
+            Tool(
+                name="audit_report",
+                description="生成完整的模型审计报告 — 汇总所有审计工具的结果",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "results": {
+                            "type": "object",
+                            "description": "各审计工具的结果字典 (tool_name -> result_text)",
+                        },
+                        "model_name": {
+                            "type": "string",
+                            "description": "被审计模型名称",
+                        },
+                        "audit_date": {
+                            "type": "string",
+                            "description": "审计日期 (默认: 今天)",
+                        },
+                    },
+                    "required": ["results", "model_name"],
+                },
+            ),
         ]
 
     @server.call_tool()
@@ -277,6 +328,86 @@ def create_server() -> "Server":
 
             report = generate_report(result, output_format)
             return [TextContent(type="text", text=report)]
+
+        elif name == "audit_memorization":
+            from difflib import SequenceMatcher
+            text_samples = arguments["text_samples"]
+            model = arguments.get("model", "gpt-4o")
+            provider = arguments.get("provider", "openai")
+            method = arguments.get("method", "prefix_completion")
+
+            # Try to call model API
+            try:
+                from modelaudit.methods.llmmap import _call_model_api_once
+                has_client = True
+            except ImportError:
+                has_client = False
+
+            if not has_client:
+                lines = ["## 记忆检测 — 交互模式", "", "未找到 LLM 客户端库，以下是供手动执行的提示：", ""]
+                for i, sample in enumerate(text_samples):
+                    mid = len(sample) // 2
+                    lines.append(f"### 样本 {i + 1}")
+                    lines.append(f"```\n请续写以下文本：\n\n{sample[:mid]}\n```\n")
+                return [TextContent(type="text", text="\n".join(lines))]
+
+            results = []
+            for i, sample in enumerate(text_samples):
+                mid = len(sample) // 2
+                prefix = sample[:mid]
+                suffix = sample[mid:]
+                if method in ("prefix_completion", "both"):
+                    prompt = f"请续写以下文本，直接输出续写部分：\n\n{prefix}"
+                    completion = _call_model_api_once(model, prompt, provider=provider)
+                    score = SequenceMatcher(None, suffix.strip(), completion.strip()).ratio()
+                    results.append({"index": i + 1, "method": "prefix_completion", "score": round(score, 4)})
+                if method in ("verbatim_check", "both"):
+                    prompt = f"请用你自己的话复述以下文本的关键信息：\n\n{sample[:200]}"
+                    response = _call_model_api_once(model, prompt, provider=provider)
+                    words = sample.split()
+                    phrase_len = min(8, len(words) // 4) or 3
+                    matches = total = 0
+                    for j in range(0, len(words) - phrase_len + 1, phrase_len):
+                        phrase = " ".join(words[j:j + phrase_len])
+                        total += 1
+                        if phrase in response:
+                            matches += 1
+                    score = matches / total if total else 0
+                    results.append({"index": i + 1, "method": "verbatim_check", "score": round(score, 4)})
+
+            lines = [f"## 训练数据记忆检测结果 ({model})", "", f"- 检测方法: {method}", f"- 样本数量: {len(text_samples)}", "",
+                     "| # | 方法 | 记忆分数 | 评级 |", "|---|------|---------|------|"]
+            for r in results:
+                level = "high" if r["score"] >= 0.7 else ("medium" if r["score"] >= 0.4 else "low")
+                icon = {"high": "🔴", "medium": "🟡", "low": "🟢"}[level]
+                lines.append(f"| {r['index']} | {r['method']} | {r['score']:.4f} | {icon} {level} |")
+            if results:
+                avg = sum(r["score"] for r in results) / len(results)
+                lines.extend(["", f"- 平均记忆分数: {avg:.4f}"])
+            return [TextContent(type="text", text="\n".join(lines))]
+
+        elif name == "audit_report":
+            from datetime import date
+            results = arguments["results"]
+            model_name = arguments["model_name"]
+            audit_date = arguments.get("audit_date", date.today().isoformat())
+            sections = {
+                "detect_text_source": "文本来源检测",
+                "verify_model": "模型身份验证",
+                "audit_distillation": "蒸馏分析",
+                "compare_models": "模型指纹比对",
+                "audit_memorization": "记忆检测",
+            }
+            lines = [f"# 模型审计报告：{model_name}", "", f"**审计日期**: {audit_date}", ""]
+            for key, title in sections.items():
+                lines.append(f"## {title}")
+                lines.append("")
+                if key in results:
+                    lines.append(results[key])
+                else:
+                    lines.append("*未执行此项检查。*")
+                lines.append("")
+            return [TextContent(type="text", text="\n".join(lines))]
 
         else:
             return [TextContent(type="text", text=f"未知工具: {name}")]

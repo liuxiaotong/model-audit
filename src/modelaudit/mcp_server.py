@@ -197,6 +197,27 @@ def create_server() -> "Server":
                     "required": ["results", "model_name"],
                 },
             ),
+            Tool(
+                name="audit_watermark",
+                description="检测文本中是否包含 AI 水印（统计特征和模式匹配）",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "texts": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "待检测的文本列表",
+                        },
+                        "method": {
+                            "type": "string",
+                            "enum": ["statistical", "pattern", "both"],
+                            "description": "检测方法（默认 both）",
+                            "default": "both",
+                        },
+                    },
+                    "required": ["texts"],
+                },
+            ),
         ]
 
     @server.call_tool()
@@ -407,6 +428,65 @@ def create_server() -> "Server":
                 else:
                     lines.append("*未执行此项检查。*")
                 lines.append("")
+            return [TextContent(type="text", text="\n".join(lines))]
+
+        elif name == "audit_watermark":
+            texts = arguments["texts"]
+            method = arguments.get("method", "both")
+
+            results = []
+            for i, text in enumerate(texts):
+                score = 0.0
+                signals = []
+
+                if method in ("statistical", "both"):
+                    # Statistical: check token distribution uniformity
+                    words = text.split()
+                    if len(words) > 20:
+                        # Check for unusually uniform word length distribution
+                        lengths = [len(w) for w in words]
+                        mean_len = sum(lengths) / len(lengths)
+                        variance = sum((l - mean_len) ** 2 for l in lengths) / len(lengths)
+                        # Low variance in word lengths can indicate watermarking
+                        if variance < 2.0:
+                            score += 0.3
+                            signals.append(f"低词长方差 ({variance:.2f})")
+
+                        # Check for repetitive n-gram patterns
+                        bigrams = [f"{words[j]} {words[j+1]}" for j in range(len(words)-1)]
+                        unique_ratio = len(set(bigrams)) / len(bigrams) if bigrams else 1
+                        if unique_ratio < 0.5:
+                            score += 0.2
+                            signals.append(f"低 bigram 唯一率 ({unique_ratio:.2f})")
+
+                if method in ("pattern", "both"):
+                    # Pattern: check for known watermark patterns
+                    # Unicode zero-width characters
+                    zwc_count = sum(1 for c in text if c in "\u200b\u200c\u200d\ufeff")
+                    if zwc_count > 0:
+                        score += 0.5
+                        signals.append(f"零宽字符: {zwc_count} 个")
+
+                    # Unusual whitespace patterns
+                    double_space = text.count("  ")
+                    if double_space > 3:
+                        score += 0.2
+                        signals.append(f"双空格: {double_space} 处")
+
+                level = "high" if score >= 0.5 else ("medium" if score >= 0.3 else "low")
+                results.append({"index": i + 1, "score": round(score, 2), "level": level, "signals": signals})
+
+            lines = [
+                "## AI 水印检测结果", "",
+                f"- 检测方法: {method}", f"- 文本数: {len(texts)}", "",
+                "| # | 水印分数 | 级别 | 信号 |",
+                "|---|---------|------|------|",
+            ]
+            for r in results:
+                icon = {"high": "🔴", "medium": "🟡", "low": "🟢"}[r["level"]]
+                sigs = "; ".join(r["signals"]) if r["signals"] else "无"
+                lines.append(f"| {r['index']} | {r['score']:.2f} | {icon} {r['level']} | {sigs} |")
+
             return [TextContent(type="text", text="\n".join(lines))]
 
         else:

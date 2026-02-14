@@ -11,7 +11,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 <br/>
 [![CI](https://github.com/liuxiaotong/model-audit/actions/workflows/ci.yml/badge.svg)](https://github.com/liuxiaotong/model-audit/actions/workflows/ci.yml)
-[![MCP](https://img.shields.io/badge/MCP-5_Tools-purple.svg)](#mcp-server)
+[![MCP](https://img.shields.io/badge/MCP-8_Tools-purple.svg)](#mcp-server)
 
 [快速开始](#快速开始) · [检测方法](#检测方法) · [MCP Server](#mcp-server) · [Data Pipeline 生态](#data-pipeline-生态)
 
@@ -298,6 +298,9 @@ knowlyr-modelaudit methods
 | `compare_models` | 黑盒比对 (支持 llmmap/dli/style 方法) |
 | `compare_models_whitebox` | 白盒比对 (REEF CKA，需要模型权重) |
 | `audit_distillation` | 完整蒸馏审计 |
+| `audit_memorization` | 记忆化检测（前缀补全相似度） |
+| `audit_report` | 生成综合审计报告（Markdown 格式） |
+| `audit_watermark` | 水印检测（零宽字符/统计特征/双元组唯一率） |
 
 ### 使用示例
 
@@ -504,7 +507,7 @@ src/modelaudit/
 │   └── prompts.py    # 探测 Prompt 库
 ├── report.py         # 报告生成 (6 节详细报告)
 ├── cli.py            # CLI 命令行 (含 -v 日志)
-├── mcp_server.py     # MCP Server (5 工具)
+├── mcp_server.py     # MCP Server (8 工具)
 └── py.typed          # PEP 561 类型标记
 ```
 

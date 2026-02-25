@@ -1,13 +1,13 @@
-> **English** | [中文](README.zh-CN.md)
+> [English](README.md) | **中文**
 
 <div align="center">
 
 <h1>ModelAudit</h1>
 
-<h3>LLM Distillation Detection and Model Fingerprinting<br/>via Statistical Forensics</h3>
+<h3>LLM 蒸馏检测与模型指纹审计<br/>LLM Distillation Detection and Model Fingerprinting<br/>via Statistical Forensics</h3>
 
-<p><strong>LLM 蒸馏检测与模型指纹审计 — 统计取证 · 行为签名 · 跨模型血缘推断</strong><br/>
-<em>Detect unauthorized model distillation through behavioral probing, stylistic fingerprinting, and representation similarity analysis</em></p>
+<p><strong>统计取证 · 行为签名 · 跨模型血缘推断</strong><br/>
+<em>通过行为探测、风格指纹和表示相似度分析检测未经授权的模型蒸馏</em></p>
 
 [![PyPI](https://img.shields.io/pypi/v/knowlyr-modelaudit?color=blue)](https://pypi.org/project/knowlyr-modelaudit/)
 [![Downloads](https://img.shields.io/pypi/dm/knowlyr-modelaudit?color=green)](https://pypi.org/project/knowlyr-modelaudit/)
@@ -15,27 +15,27 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 <br/>
 [![CI](https://github.com/liuxiaotong/model-audit/actions/workflows/ci.yml/badge.svg)](https://github.com/liuxiaotong/model-audit/actions/workflows/ci.yml)
-[![MCP Tools](https://img.shields.io/badge/MCP_Tools-8-purple.svg)](#mcp-server)
-[![Methods](https://img.shields.io/badge/Methods-4-orange.svg)](#detection-methods)
-[![Model Families](https://img.shields.io/badge/Model_Families-12-red.svg)](#detection-methods)
+[![MCP Tools](https://img.shields.io/badge/MCP_Tools-8-purple.svg)](#mcp-服务器-mcp-server)
+[![Methods](https://img.shields.io/badge/Methods-4-orange.svg)](#检测方法-detection-methods)
+[![Model Families](https://img.shields.io/badge/Model_Families-12-red.svg)](#检测方法-detection-methods)
 
-[Abstract](#abstract) · [Problem Statement](#problem-statement) · [Formal Framework](#formal-framework) · [Architecture](#architecture) · [Key Innovations](#key-innovations) · [Quick Start](#quick-start) · [Detection Methods](#detection-methods) · [MCP Server](#mcp-server) · [Ecosystem](#ecosystem) · [References](#references)
+[摘要](#摘要-abstract) · [问题定义](#问题定义-problem-statement) · [形式化框架](#形式化框架-formal-framework) · [架构](#架构-architecture) · [核心创新](#核心创新-key-innovations) · [快速开始](#快速开始-quick-start) · [检测方法](#检测方法-detection-methods) · [MCP 服务器](#mcp-服务器-mcp-server) · [生态系统](#生态系统-ecosystem) · [参考文献](#参考文献-references)
 
 </div>
 
 ---
 
-## Abstract
+## 摘要 / Abstract
 
 大语言模型的蒸馏行为 (knowledge distillation) 已成为模型知识产权保护的核心威胁——学生模型通过模仿教师模型的输出分布，可以在未经授权的情况下复制其能力。现有检测方法要么依赖白盒权重访问（实际场景中通常不可得），要么仅分析表面文本特征（易被规避）。
 
 ModelAudit 提出基于**统计取证** (statistical forensics) 的多方法蒸馏检测框架：通过**行为探测** (behavioral probing) 提取模型指纹 $\mathcal{F}(M)$，基于**假设检验** (hypothesis testing) 判定蒸馏关系，结合**风格签名** (stylistic signature)、**行为血缘推断** (behavioral lineage inference) 和**表示相似度** (representation similarity) 四种互补方法，实现黑盒到白盒的完整审计链。
 
-> **ModelAudit** implements a multi-method distillation detection framework based on statistical forensics. The system extracts model fingerprints $\mathcal{F}(M)$ through 20 behavioral probes, applies hypothesis testing $H_0: M_S \perp M_T$ to determine distillation relationships, and combines 4 complementary methods — LLMmap (behavioral probing), DLI (lineage inference via Jensen-Shannon divergence), REEF (CKA representation similarity), and StyleAnalysis (12-family stylistic signatures) — to form a complete black-box to white-box audit chain. Built-in benchmark achieves 100% detection accuracy across 6 model families (14 samples).
+> **ModelAudit** 实现了基于统计取证的多方法蒸馏检测框架。系统通过 20 个行为探测提取模型指纹 $\mathcal{F}(M)$，应用假设检验 $H_0: M_S \perp M_T$ 判定蒸馏关系，并融合 4 种互补方法——LLMmap（行为探测）、DLI（基于 Jensen-Shannon 散度的血缘推断）、REEF（CKA 表示相似度）和 StyleAnalysis（12 个家族风格签名）——构成从黑盒到白盒的完整审计链。内置基准测试在 6 个模型家族（14 个样本）上达到 100% 检测准确率。
 
 ---
 
-## Problem Statement
+## 问题定义 / Problem Statement
 
 模型蒸馏检测面临三个根本性挑战：
 
@@ -49,9 +49,9 @@ ModelAudit 提出基于**统计取证** (statistical forensics) 的多方法蒸�
 
 ---
 
-## Formal Framework
+## 形式化框架 / Formal Framework
 
-### Model Fingerprint Extraction
+### 模型指纹提取 / Model Fingerprint Extraction
 
 模型指纹定义为探测集上的行为响应分布：
 
@@ -59,7 +59,7 @@ $$\mathcal{F}(M) = \{p_M(y \mid x_i)\}_{i=1}^{N}$$
 
 其中 $\{x_i\}_{i=1}^{N}$ 为 $N=20$ 个探测 Prompt，覆盖自我认知、安全边界、注入测试、推理、创意、多语言、格式控制、角色扮演、代码生成、摘要能力 10 个维度。每个探测的响应 $y$ 被提取为特征向量 $\phi(y) \in \mathbb{R}^d$。
 
-### Distillation Hypothesis Testing
+### 蒸馏假设检验 / Distillation Hypothesis Testing
 
 蒸馏检测形式化为假设检验问题：
 
@@ -71,7 +71,7 @@ $$\text{sim}(M_1, M_2) = \frac{\sum_i (\phi_i^{(1)} - \bar{\phi}^{(1)})(\phi_i^{
 
 当 $\text{sim}(M_S, M_T) > \delta$（默认 $\delta = 0.7$）时，拒绝 $H_0$，判定存在蒸馏嫌疑。
 
-### Behavioral Lineage Inference (DLI)
+### 行为血缘推断 / Behavioral Lineage Inference (DLI)
 
 基于 Jensen-Shannon 散度的血缘推断：
 
@@ -79,7 +79,7 @@ $$D_{JS}(P \| Q) = \frac{1}{2} D_{KL}(P \| M) + \frac{1}{2} D_{KL}(Q \| M), \qua
 
 对每个探测维度计算行为签名的 JS 散度，综合多维度得分判定血缘关系。
 
-### Representation Similarity (REEF)
+### 表示相似度 / Representation Similarity (REEF)
 
 白盒场景下，基于 Centered Kernel Alignment (CKA) 比对中间层隐藏状态：
 
@@ -89,21 +89,21 @@ $$\text{CKA}(X, Y) = \frac{\|Y^T X\|_F^2}{\|X^T X\|_F \cdot \|Y^T Y\|_F}$$
 
 ---
 
-## Architecture
+## 架构 / Architecture
 
 ```mermaid
 graph LR
-    P["Probe Library<br/>20 Prompts × 10 Dims"] --> E["AuditEngine<br/>Concurrent Probing"]
-    E --> F["Fingerprint<br/>Feature Extraction"]
-    F --> L["LLMmap<br/>Pearson Correlation"]
-    F --> D["DLI<br/>JS Divergence"]
-    F --> S["StyleAnalysis<br/>12-Family Signatures"]
-    F --> R["REEF<br/>CKA Similarity"]
-    L --> V["Verdict Engine<br/>Hypothesis Testing"]
+    P["探测库<br/>20 Prompts × 10 维度"] --> E["审计引擎<br/>并发探测"]
+    E --> F["指纹<br/>特征提取"]
+    F --> L["LLMmap<br/>Pearson 相关"]
+    F --> D["DLI<br/>JS 散度"]
+    F --> S["StyleAnalysis<br/>12 家族签名"]
+    F --> R["REEF<br/>CKA 相似度"]
+    L --> V["判定引擎<br/>假设检验"]
     D --> V
     S --> V
     R --> V
-    V --> Rep["Audit Report<br/>6-Section Markdown"]
+    V --> Rep["审计报告<br/>6 节 Markdown"]
 
     style E fill:#0969da,color:#fff,stroke:#0969da
     style V fill:#8b5cf6,color:#fff,stroke:#8b5cf6
@@ -116,24 +116,24 @@ graph LR
     style R fill:#1a1a2e,color:#e0e0e0,stroke:#444
 ```
 
-### Layered Architecture
+### 分层架构 / Layered Architecture
 
 | 层 | 模块 | 职责 |
 |:---|:---|:---|
-| **Probing** | `probes/prompts.py` | 20 个探测 Prompt，覆盖 10 个行为维度 |
-| **Engine** | `engine.py` | 统一入口，ThreadPoolExecutor 并发探测 (4 并发) |
-| **Methods** | `methods/` | 4 种检测方法注册表，按黑盒/白盒分层 |
-| **Fingerprint** | `models.py` | Pydantic 数据模型，指纹特征向量 |
-| **Cache** | `cache.py` | SHA-256 防碰撞指纹缓存，TTL 过期 |
-| **Report** | `report.py` | 6 节结构化审计报告生成 |
-| **Benchmark** | `benchmark.py` | 14 条样本 × 6 家族内置评估集 |
-| **Interface** | `cli.py` · `mcp_server.py` | CLI + MCP 8 工具 |
+| **探测层** | `probes/prompts.py` | 20 个探测 Prompt，覆盖 10 个行为维度 |
+| **引擎层** | `engine.py` | 统一入口，ThreadPoolExecutor 并发探测 (4 并发) |
+| **方法层** | `methods/` | 4 种检测方法注册表，按黑盒/白盒分层 |
+| **指纹层** | `models.py` | Pydantic 数据模型，指纹特征向量 |
+| **缓存层** | `cache.py` | SHA-256 防碰撞指纹缓存，TTL 过期 |
+| **报告层** | `report.py` | 6 节结构化审计报告生成 |
+| **基准层** | `benchmark.py` | 14 条样本 x 6 家族内置评估集 |
+| **接口层** | `cli.py` · `mcp_server.py` | CLI + MCP 8 工具 |
 
 ---
 
-## Key Innovations
+## 核心创新 / Key Innovations
 
-### 1. Multi-Method Forensic Analysis
+### 1. 多方法取证分析 / Multi-Method Forensic Analysis
 
 四种互补检测方法覆盖从黑盒到白盒的完整审计链：
 
@@ -144,9 +144,9 @@ graph LR
 | **REEF** | 白盒 | CKA 逐层隐藏状态相似度 | NeurIPS 2024 |
 | **StyleAnalysis** | 风格分析 | 12 个模型家族风格签名 + 语言检测 | — |
 
-任一方法独立可用，多方法融合提高判定置信度。内置 benchmark 在 6 个模型家族上实现 100% 检测准确率。
+任一方法独立可用，多方法融合提高判定置信度。内置基准测试在 6 个模型家族上实现 100% 检测准确率。
 
-### 2. Behavioral Probing with 10-Dimensional Coverage
+### 2. 10 维行为探测 / Behavioral Probing with 10-Dimensional Coverage
 
 超越简单的文本统计特征，通过 10 个认知维度的结构化探测提取深层行为差异：
 
@@ -165,7 +165,7 @@ graph LR
 
 这些维度在 RLHF 对齐后仍保留显著的模型间差异，是可靠的指纹特征来源。
 
-### 3. Cross-Provider Audit Chain
+### 3. 跨 Provider 审计链 / Cross-Provider Audit Chain
 
 支持跨 Provider 的蒸馏审计——教师和学生模型可来自不同 API：
 
@@ -180,7 +180,7 @@ knowlyr-modelaudit audit \
 
 自动生成 6 节详细审计报告：审计对象 → 方法 → 结果（指纹详情 + 逐条探测）→ 关键发现 → 结论 → 局限性声明。
 
-### 4. Concurrent Probing with Intelligent Caching
+### 4. 并发探测与智能缓存 / Concurrent Probing with Intelligent Caching
 
 ThreadPoolExecutor 并发发送探测 Prompt（默认 4 并发），指纹缓存支持 SHA-256 防碰撞 + TTL 过期：
 
@@ -192,7 +192,7 @@ ThreadPoolExecutor 并发发送探测 Prompt（默认 4 并发），指纹缓存
 
 ---
 
-## Quick Start
+## 快速开始 / Quick Start
 
 ```bash
 pip install knowlyr-modelaudit
@@ -223,7 +223,7 @@ knowlyr-modelaudit compare gpt-4o claude-sonnet --provider openai
 # 4. 完整蒸馏审计
 knowlyr-modelaudit audit --teacher gpt-4o --student my-model -o report.md
 
-# 5. 运行 benchmark
+# 5. 运行基准测试
 knowlyr-modelaudit benchmark
 ```
 
@@ -259,7 +259,7 @@ print(f"{audit.verdict} (confidence: {audit.confidence:.3f})")
 
 ---
 
-## Detection Methods
+## 检测方法 / Detection Methods
 
 <details>
 <summary>探测维度详情（20 个 Probe）</summary>
@@ -281,7 +281,7 @@ print(f"{audit.verdict} (confidence: {audit.confidence:.3f})")
 
 ---
 
-## MCP Server
+## MCP 服务器 / MCP Server
 
 ```json
 {
@@ -294,7 +294,7 @@ print(f"{audit.verdict} (confidence: {audit.confidence:.3f})")
 }
 ```
 
-| Tool | Description |
+| 工具 | 说明 |
 |:---|:---|
 | `detect_text_source` | 检测文本数据来源 |
 | `verify_model` | 验证模型身份 |
@@ -307,7 +307,7 @@ print(f"{audit.verdict} (confidence: {audit.confidence:.3f})")
 
 ---
 
-## CLI Reference
+## CLI 参考 / CLI Reference
 
 <details>
 <summary>完整命令列表</summary>
@@ -324,7 +324,7 @@ print(f"{audit.verdict} (confidence: {audit.confidence:.3f})")
 | `knowlyr-modelaudit audit ... -f json` | JSON 格式报告 |
 | `knowlyr-modelaudit cache list` | 查看缓存的指纹 |
 | `knowlyr-modelaudit cache clear` | 清除所有缓存 |
-| `knowlyr-modelaudit benchmark` | 运行内置 benchmark |
+| `knowlyr-modelaudit benchmark` | 运行内置基准测试 |
 | `knowlyr-modelaudit benchmark --label claude` | 按模型家族过滤 |
 | `knowlyr-modelaudit methods` | 列出可用检测方法 |
 
@@ -332,22 +332,22 @@ print(f"{audit.verdict} (confidence: {audit.confidence:.3f})")
 
 ---
 
-## Ecosystem
+## 生态系统 / Ecosystem
 
 <details>
-<summary>Architecture Diagram</summary>
+<summary>架构图</summary>
 
 ```mermaid
 graph LR
-    Radar["Radar<br/>Discovery"] --> Recipe["Recipe<br/>Analysis"]
-    Recipe --> Synth["Synth<br/>Generation"]
-    Recipe --> Label["Label<br/>Annotation"]
-    Synth --> Check["Check<br/>Quality"]
+    Radar["Radar<br/>发现"] --> Recipe["Recipe<br/>分析"]
+    Recipe --> Synth["Synth<br/>生成"]
+    Recipe --> Label["Label<br/>标注"]
+    Synth --> Check["Check<br/>质量"]
     Label --> Check
-    Check --> Audit["Audit<br/>Model Audit"]
-    Crew["Crew<br/>Deliberation Engine"]
-    Agent["Agent<br/>RL Framework"]
-    ID["ID<br/>Identity Runtime"]
+    Check --> Audit["Audit<br/>模型审计"]
+    Crew["Crew<br/>协商引擎"]
+    Agent["Agent<br/>RL 框架"]
+    ID["ID<br/>身份运行时"]
     Crew -.->|能力定义| ID
     ID -.->|身份 + 记忆| Crew
     Crew -.->|轨迹 + 奖励| Agent
@@ -366,20 +366,20 @@ graph LR
 
 </details>
 
-| Layer | Project | Description | Repo |
+| 层 | 项目 | 说明 | 仓库 |
 |:---|:---|:---|:---|
-| Discovery | **AI Dataset Radar** | 数据集竞争情报、趋势分析 | [GitHub](https://github.com/liuxiaotong/ai-dataset-radar) |
-| Analysis | **DataRecipe** | 逆向分析、Schema 提取、成本估算 | [GitHub](https://github.com/liuxiaotong/data-recipe) |
-| Production | **DataSynth** / **DataLabel** | LLM 批量合成 / 轻量标注 | [GitHub](https://github.com/liuxiaotong/data-synth) · [GitHub](https://github.com/liuxiaotong/data-label) |
-| Quality | **DataCheck** | 规则验证、重复检测、分布分析 | [GitHub](https://github.com/liuxiaotong/data-check) |
-| Audit | **ModelAudit** | 蒸馏检测 · 模型指纹 · 统计取证 | You are here |
-| Identity | **knowlyr-id** | 身份系统 + AI 员工运行时 | [GitHub](https://github.com/liuxiaotong/knowlyr-id) |
-| Deliberation | **Crew** | 对抗式多智能体协商 · 持久记忆进化 · MCP 原生 | [GitHub](https://github.com/liuxiaotong/knowlyr-crew) |
-| Agent Training | **knowlyr-gym** | Gymnasium 风格 RL 框架 · 过程奖励模型 · SFT/DPO/GRPO | [GitHub](https://github.com/liuxiaotong/knowlyr-gym) |
+| 发现 | **AI Dataset Radar** | 数据集竞争情报、趋势分析 | [GitHub](https://github.com/liuxiaotong/ai-dataset-radar) |
+| 分析 | **DataRecipe** | 逆向分析、Schema 提取、成本估算 | [GitHub](https://github.com/liuxiaotong/data-recipe) |
+| 生产 | **DataSynth** / **DataLabel** | LLM 批量合成 / 轻量标注 | [GitHub](https://github.com/liuxiaotong/data-synth) · [GitHub](https://github.com/liuxiaotong/data-label) |
+| 质量 | **DataCheck** | 规则验证、重复检测、分布分析 | [GitHub](https://github.com/liuxiaotong/data-check) |
+| 审计 | **ModelAudit** | 蒸馏检测 · 模型指纹 · 统计取证 | 当前项目 |
+| 身份 | **knowlyr-id** | 身份系统 + AI 员工运行时 | [GitHub](https://github.com/liuxiaotong/knowlyr-id) |
+| 协商 | **Crew** | 对抗式多智能体协商 · 持久记忆进化 · MCP 原生 | [GitHub](https://github.com/liuxiaotong/knowlyr-crew) |
+| 训练 | **knowlyr-gym** | Gymnasium 风格 RL 框架 · 过程奖励模型 · SFT/DPO/GRPO | [GitHub](https://github.com/liuxiaotong/knowlyr-gym) |
 
 ---
 
-## Development
+## 开发 / Development
 
 ```bash
 git clone https://github.com/liuxiaotong/model-audit.git
@@ -388,11 +388,11 @@ pip install -e ".[all,dev]"
 pytest
 ```
 
-**CI**: GitHub Actions，Python 3.10+。Tag push 自动发布 PyPI + GitHub Release。
+**CI**：GitHub Actions，Python 3.10+。Tag push 自动发布 PyPI + GitHub Release。
 
 ---
 
-## References
+## 参考文献 / References
 
 - **LLMmap** — Haller, R. et al., 2025. *LLMmap: Fingerprinting For Large Language Models.* USENIX Security — 行为探测指纹的基础方法
 - **DLI** — Chen, W. et al., 2026. *Detecting LLM Distillation via Behavioral Lineage Inference.* ICLR — 基于 JS 散度的蒸馏血缘推断
@@ -403,12 +403,12 @@ pytest
 
 ---
 
-## License
+## 许可证 / License
 
 [MIT](LICENSE)
 
 ---
 
 <div align="center">
-<sub><a href="https://github.com/liuxiaotong">knowlyr</a> — LLM distillation detection and model fingerprinting via statistical forensics</sub>
+<sub><a href="https://github.com/liuxiaotong">knowlyr</a> — LLM 蒸馏检测与模型指纹审计 · 统计取证</sub>
 </div>

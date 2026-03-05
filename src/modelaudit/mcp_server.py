@@ -446,7 +446,7 @@ def create_server() -> "Server":
                         # Check for unusually uniform word length distribution
                         lengths = [len(w) for w in words]
                         mean_len = sum(lengths) / len(lengths)
-                        variance = sum((l - mean_len) ** 2 for l in lengths) / len(lengths)
+                        variance = sum((wl - mean_len) ** 2 for wl in lengths) / len(lengths)
                         # Low variance in word lengths can indicate watermarking
                         if variance < 2.0:
                             score += 0.3

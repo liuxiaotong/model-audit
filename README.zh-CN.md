@@ -2,6 +2,9 @@
 
 <div align="center">
 
+<img src="assets/icon.png" width="128" alt="model-audit icon">
+<br/>
+
 <h1>ModelAudit</h1>
 
 <h3>LLM 蒸馏检测与模型指纹审计<br/>LLM Distillation Detection and Model Fingerprinting<br/>via Statistical Forensics</h3>
